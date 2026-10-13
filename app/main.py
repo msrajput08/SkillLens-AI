@@ -215,6 +215,60 @@ async def rewrite_endpoint(
 
 
 
+class CoverLetterInput(BaseModel):
+    full_name: str = Field(min_length=2, max_length=120)
+    company: str = Field(min_length=2, max_length=160)
+    role: str = Field(min_length=2, max_length=160)
+    resume_text: str = Field(min_length=100, max_length=55000)
+    job_description: str = Field(min_length=80, max_length=40000)
+
+
+@app.post('/api/cover-letter')
+def create_cover_letter(data: CoverLetterInput, user = Depends(require_user)):
+    """Evidence-first local template; does not call an external AI service.
+
+    Do not invent employment, quantified impact, education, or credentials.
+    Job-description keywords only appear when independently in the resume.
+    """
+    import re
+    def clean_label(value: str) -> str:
+        return re.sub(r'\\s+', ' ', value).strip()
+
+    name = clean_label(data.full_name)
+    company = clean_label(data.company)
+    role = clean_label(data.role)
+    required, preferred = _requirement_groups(data.job_description)
+    matched = [skill for skill in dict.fromkeys(required + preferred)
+               if _evidence(data.resume_text, skill)]
+    if matched:
+        evidence = 'My resume references ' + ', '.join(matched[:5]) + (
+            ', among other skills.' if len(matched) > 5 else '.')
+        fit = ('These overlap with technologies mentioned in the job description. '
+               'I would welcome a chance to discuss the relevant projects and evidence.')
+    else:
+        evidence = ('I am interested in learning more about the responsibilities '
+                    'and explaining which parts of my background are most relevant.')
+        fit = 'I would welcome an opportunity to discuss my experience in more detail.'
+    draft = '\\n'.join([
+        name,
+        '',
+        f'Dear {company} Hiring Team,',
+        '',
+        f'I am writing to express my interest in the {role} position at {company}.',
+        '',
+        evidence + ' ' + fit,
+        '',
+        'Thank you for considering my application. I would be happy to share '
+        'additional examples and discuss how my background may support your team.',
+        '',
+        'Sincerely,',
+        name,
+    ])
+    return {'draft': draft, 'external_ai_used': False,
+            'matched_skills': matched[:5],
+            'notice': 'Editable evidence-first template. Verify every statement before applying.'}
+
+
 class ExportDraft(BaseModel):
     draft: str = Field(min_length=20, max_length=55000)
 
