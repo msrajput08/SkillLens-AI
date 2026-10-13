@@ -549,11 +549,41 @@ def delete_report(report_id: str, user: User = Depends(require_user)):
     return {'ok': True}
 
 
+def pro_billing_enabled() -> bool:
+    """Commercial subscriptions require an explicit, fully configured live switch.
+
+    Razorpay's one-time rzp_test_ checkout must NEVER activate recurring billing.
+    """
+    required = ('RAZORPAY_KEY_SECRET', 'RAZORPAY_PLAN_ID',
+                'RAZORPAY_WEBHOOK_SECRET', 'SKILLLENS_PRO_PRICE_INR')
+    return (PROD and not NO_CARD_BETA
+            and os.getenv('SKILLLENS_PRO_BILLING_ENABLED', '').lower() == 'true'
+            and os.getenv('RAZORPAY_KEY_ID', '').startswith('rzp_live_')
+            and os.getenv('LEGAL_REVIEWED') == 'yes'
+            and all(os.getenv(k, '').strip() for k in required)
+            and os.getenv('SKILLLENS_PRO_PRICE_INR') == '199')
+
+
+def verified_paid_subscription(subscription: dict) -> bool:
+    """An active subscription alone isn't evidence that a cycle was paid."""
+    try:
+        paid = int(subscription.get('paid_count') or 0)
+        current_end = int(subscription.get('current_end') or 0)
+    except (TypeError, ValueError):
+        return False
+    return (subscription.get('status') == 'active'
+            and subscription.get('plan_id') == os.getenv('RAZORPAY_PLAN_ID')
+            and paid > 0 and current_end > int(datetime.now(timezone.utc).timestamp()))
+
+
 @router.get('/billing/config')
 def billing_config():
-    return {'provider': 'razorpay', 'enabled': not NO_CARD_BETA and bool(os.getenv('RAZORPAY_KEY_ID') and os.getenv('RAZORPAY_PLAN_ID')),
-            'plan': 'Pro', 'currency': 'INR', 'price': os.getenv('SKILLLENS_PRO_PRICE_INR') or None,
-            'message': 'Pricing is displayed in Razorpay Checkout. Set your plan in the merchant dashboard.'}
+    enabled = pro_billing_enabled()
+    return {'provider': 'razorpay', 'enabled': enabled,
+            'plan': 'Pro', 'currency': 'INR', 'price': '199' if enabled else None,
+            'period': 'monthly', 'recurring': enabled,
+            'message': 'Pro billing is not yet available.' if not enabled
+                       else '₹199 every month, up to 12 cycles. Cancel at cycle end.'}
 
 
 async def razorpay(method: str, path: str, **kwargs):
@@ -601,8 +631,8 @@ async def razorpay(method: str, path: str, **kwargs):
 
 @router.post('/billing/checkout')
 async def billing_checkout(user: User = Depends(require_user)):
-    if NO_CARD_BETA:
-        raise HTTPException(503, 'Payments are not enabled during the free beta.')
+    if not pro_billing_enabled():
+        raise HTTPException(503, 'Recurring Pro billing is not enabled.')
     if user.tier == 'pro':
         raise HTTPException(409, 'You already have an active Pro subscription.')
     plan = os.getenv('RAZORPAY_PLAN_ID', '')
@@ -610,17 +640,16 @@ async def billing_checkout(user: User = Depends(require_user)):
         raise HTTPException(503, 'Merchant billing plan is not configured.')
     # Fail closed when the actual merchant plan differs from the advertised amount.
     price = os.getenv('SKILLLENS_PRO_PRICE_INR', '')
-    if price:
-        try:
-            advertised_paise = int(Decimal(price) * 100)
-        except (InvalidOperation, ValueError):
-            raise HTTPException(503, 'Merchant price configuration is invalid.')
-        actual_plan = await razorpay('GET', f'plans/{plan}')
-        if (actual_plan.get('item', {}).get('amount') != advertised_paise
-                or actual_plan.get('item', {}).get('currency') != 'INR'
-                or actual_plan.get('period') != 'monthly'
-                or actual_plan.get('interval') != 1):
-            raise HTTPException(503, 'Billing plan and advertised monthly price do not match.')
+    try:
+        advertised_paise = int(Decimal(price) * 100)
+    except (InvalidOperation, ValueError):
+        raise HTTPException(503, 'Merchant price configuration is invalid.')
+    actual_plan = await razorpay('GET', f'plans/{plan}')
+    if (actual_plan.get('item', {}).get('amount') != advertised_paise
+            or actual_plan.get('item', {}).get('currency') != 'INR'
+            or actual_plan.get('period') != 'monthly'
+            or actual_plan.get('interval') != 1):
+        raise HTTPException(503, 'Billing plan and advertised monthly price do not match.')
     with Session() as db:
         current = db.get(User, user.id)
         if current.provider_subscription_id and current.subscription_status in ('created', 'authenticated', 'active', 'pending'):
@@ -628,8 +657,9 @@ async def billing_checkout(user: User = Depends(require_user)):
         else:
             subscription_id = None
     if not subscription_id:
+        throttle('billing:checkout:' + user.id, limit=10, seconds=3600)
         created = await razorpay('POST', 'subscriptions', json={
-            'plan_id': plan, 'total_count': 120, 'quantity': 1, 'customer_notify': False,
+            'plan_id': plan, 'total_count': 12, 'quantity': 1, 'customer_notify': True,
             'notes': {'skilllens_user_id': user.id}})
         subscription_id = created['id']
         with Session.begin() as db:
@@ -638,6 +668,26 @@ async def billing_checkout(user: User = Depends(require_user)):
             current.subscription_status = 'created'
     return {'key': os.environ['RAZORPAY_KEY_ID'], 'subscription_id': subscription_id,
             'name': 'SkillLens Pro', 'email': user.email}
+
+
+@router.post('/billing/status')
+async def billing_status(user: User = Depends(require_user)):
+    """Fetch authoritative subscription state; useful when a webhook is delayed."""
+    if not user.provider_subscription_id:
+        return {'tier': user.tier, 'status': user.subscription_status,
+                'message': 'No recurring subscription found.'}
+    throttle('billing:status:' + user.id, limit=8, seconds=3600)
+    current = await razorpay('GET', f'subscriptions/{user.provider_subscription_id}')
+    if current.get('id') != user.provider_subscription_id:
+        raise HTTPException(502, 'Payment provider returned a mismatched subscription.')
+    is_paid = verified_paid_subscription(current)
+    with Session.begin() as db:
+        account = db.get(User, user.id)
+        account.subscription_status = current.get('status')
+        account.tier = 'pro' if is_paid else 'free'
+    return {'tier': 'pro' if is_paid else 'free',
+            'status': current.get('status'),
+            'message': 'Pro active.' if is_paid else 'No verified paid Pro period is active.'}
 
 
 @router.post('/billing/cancel')
@@ -654,6 +704,8 @@ async def cancel_subscription(user: User = Depends(require_user)):
 @router.post('/webhooks/razorpay')
 async def razorpay_webhook(request: Request):
     secret = os.getenv('RAZORPAY_WEBHOOK_SECRET', '')
+    if NO_CARD_BETA:
+        raise HTTPException(503, 'Subscriptions are disabled during the free beta.')
     if not secret:
         raise HTTPException(503, 'Webhook is not configured.')
     payload = await request.body()
@@ -697,7 +749,7 @@ async def razorpay_webhook(request: Request):
                 user = proposed
         if user:
             user.subscription_status = status
-            user.tier = 'pro' if status == 'active' and current.get('plan_id') == os.getenv('RAZORPAY_PLAN_ID') else 'free'
+            user.tier = 'pro' if verified_paid_subscription(current) else 'free'
         db.add(WebhookEvent(id=event_id))
     return {'ok': True}
 

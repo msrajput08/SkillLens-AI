@@ -114,7 +114,8 @@ def test_signed_webhook_updates_tier_idempotently_and_rechecks_provider(monkeypa
     async def fake_api(method, path, **kwargs):
         assert method=='GET'
         assert path=='subscriptions/'+sub_id
-        return {'id':sub_id,'status':state['status'],'plan_id':'plan_abc123'}
+        return {'id':sub_id,'status':state['status'],'plan_id':'plan_abc123',
+                'paid_count': 1, 'current_end': 4102444800}
     monkeypatch.setattr(saas, 'razorpay', fake_api)
     with TestClient(app) as client:
         credentials, csrf=signup(client)
@@ -170,13 +171,20 @@ def test_upload_scanner_fails_closed(monkeypatch):
 
 def test_razorpay_plan_price_mismatch_is_rejected(monkeypatch):
     import app.saas as saas
+    monkeypatch.setenv('SKILLLENS_PRO_BILLING_ENABLED', 'true')
+    monkeypatch.setenv('RAZORPAY_KEY_ID', 'rzp_live_mock')
+    monkeypatch.setenv('RAZORPAY_KEY_SECRET', 'mock-non-production')
+    monkeypatch.setenv('RAZORPAY_WEBHOOK_SECRET', 'mock-webhook')
+    monkeypatch.setenv('LEGAL_REVIEWED', 'yes')
     monkeypatch.setenv('RAZORPAY_PLAN_ID', 'plan_example')
-    monkeypatch.setenv('SKILLLENS_PRO_PRICE_INR', '399')
+    monkeypatch.setenv('SKILLLENS_PRO_PRICE_INR', '199')
     async def fake_api(method,path,**kw):
         return {'item':{'amount':59900,'currency':'INR'},'period':'monthly','interval':1}
     monkeypatch.setattr(saas,'razorpay',fake_api)
     with TestClient(app) as client:
         _,csrf=signup(client)
+        monkeypatch.setattr(saas, 'PROD', True)
+        monkeypatch.setattr(saas, 'NO_CARD_BETA', False)
         result=client.post('/api/billing/checkout',headers={'X-CSRF-Token':csrf})
         assert result.status_code==503
         assert 'do not match' in result.json()['detail']
