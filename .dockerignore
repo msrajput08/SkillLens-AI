@@ -14,3 +14,9 @@ screenshots
 *.jpg
 
 .skilllens_dev_key
+
+frontend/node_modules
+app/static/vendor
+*.age
+*.pem
+*.key

@@ -1,4 +1,8 @@
-# SkillLens AI — Commercial SaaS Edition
+# SkillLens AI — Commercial SaaS Edition v3
+
+**New in v3:** browser-side PDF/DOCX/TXT import (original files stay in browser), encrypted resume drafts, browser resume builder, deterministic cover-letter template, encrypted application tracker, and user data export. Backend migrations in `migrations/versions/0002_career_workspace.py`. Browser parsers are installed during the Docker build via `frontend/install.mjs`.
+
+**Deployment status:** Public no-card Render/Neon beta, not independently security-audited or payment-production certified. See [Production readiness gates](PRODUCTION_GATES.md) before accepting paid users.
 
 **Status: application source + single-server deployment bundle.** This ZIP includes the integrated application, infrastructure configuration, tests and documentation. It is **not yet a live public website or a certified production release**. Real payment transactions, live SMTP delivery, DNS, TLS certificates, backups, legal documents, reliability and penetration testing require operator credentials and a real deployment environment. No API keys, merchant accounts, domains, or hosted model weights are included.
 
