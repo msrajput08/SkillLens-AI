@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import DateTime, ForeignKey, Integer, String, select
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .saas import Base, Session, User, razorpay, require_user, utcnow
+from .saas import Base, Session, User, razorpay, require_user, throttle, utcnow
 
 router = APIRouter(prefix='/api', tags=['standard-checkout'])
 
@@ -67,6 +67,7 @@ async def create_order(data: CreateOrderBody, user: User = Depends(require_user)
     # Never trust arbitrary browser-set prices. The server owns the product amount.
     if data.amount != amount or data.currency != 'INR':
         raise HTTPException(400, 'Requested amount/currency does not match the configured test product.')
+    throttle('standard-checkout:create:' + user.id, limit=10, seconds=3600)
     receipt = 'sltest_' + secrets.token_hex(12)
     order = await razorpay('POST', 'orders', json={
         'amount': amount, 'currency': 'INR', 'receipt': receipt,
