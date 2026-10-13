@@ -103,15 +103,16 @@ async def verify_payment(payload: dict, user: User = Depends(require_user)):
         order = db.get(CheckoutOrder, order_id)
         if not order or order.user_id != user.id:
             raise HTTPException(404, 'Order not found.')
-        if order.status == 'captured':
-            if order.payment_id != payment_id:
-                raise HTTPException(400, 'Order is already associated with a different payment.')
-            return {'verified': True, 'order_id': order_id, 'payment_id': payment_id,
-                    'amount': order.amount, 'currency': order.currency, 'grants_pro': False}
     secret = os.environ['RAZORPAY_KEY_SECRET'].encode()
     computed = hmac.new(secret, f'{order_id}|{payment_id}'.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(computed, provided.lower()):
         raise HTTPException(400, 'Payment signature verification failed.')
+    # Signed idempotent retries are safe; unsigned retries never report success.
+    if order.status == 'captured':
+        if order.payment_id != payment_id:
+            raise HTTPException(400, 'Order is already associated with a different payment.')
+        return {'verified': True, 'order_id': order_id, 'payment_id': payment_id,
+                'amount': order.amount, 'currency': order.currency, 'grants_pro': False}
 
     # HMAC alone establishes callback authenticity, NOT whether money was captured.
     # Fetch the payment from Razorpay before recording success or granting anything.
