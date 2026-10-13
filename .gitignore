@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.DS_Store
+.env.production
+*.db
+*.db-wal
+*.db-shm
+alembic.ini.local
+
+.skilllens_dev_key

@@ -1,0 +1,13 @@
+Junior Java Backend Software Engineer
+
+Requirements:
+- Build reliable backend APIs using Java, Spring Boot and REST APIs.
+- Work with relational data using SQL and PostgreSQL.
+- Use Git for collaborative development, plus unit testing.
+- Familiarity with Docker and CI/CD and building secure APIs using OAuth.
+
+Nice-to-have:
+- Knowledge of Kubernetes, AWS, and React is a plus.
+- Experience with microservices and system design is desirable.
+
+You will build features, write maintainable code, participate in peer review, and improve service quality for a fast-growing product.

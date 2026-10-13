@@ -1,0 +1,635 @@
+"""SkillLens commercial SaaS backend: first-party auth, quota, encrypted opt-in history,
+Razorpay subscription webhooks. See SECURITY.md for threat model and deployment gates.
+"""
+import hashlib
+import hmac
+import json
+import os
+import re
+import secrets
+import smtplib
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
+from email.message import EmailMessage
+from pathlib import Path
+from urllib.parse import urlparse
+
+import httpx
+from argon2 import PasswordHasher, exceptions as argon_error
+from cryptography.fernet import Fernet, InvalidToken
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import (Boolean, DateTime, ForeignKey, Integer, String, Text,
+                        UniqueConstraint, create_engine, delete, func, select, update)
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+
+ENV = os.getenv('SKILLLENS_ENV', 'development').lower()
+PROD = ENV == 'production'
+NO_CARD_BETA = PROD and os.getenv('SKILLLENS_LAUNCH_MODE', '').lower() == 'render_beta'
+SITE_URL = os.getenv('SKILLLENS_SITE_URL', 'http://localhost:8000').rstrip('/')
+DB_URL = os.getenv('DATABASE_URL', 'sqlite:///./skilllens_dev.db')
+FERNET_KEY = os.getenv('SKILLLENS_DATA_KEY', '')
+COOKIE_NAME = 'skilllens_session'
+AUTH_DAYS = 14
+FREE_LIMITS = {'analyze': 5, 'rewrite': 3}
+PRO_LIMITS = {'analyze': 200, 'rewrite': 100}
+ph = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2)
+
+if PROD:
+    required = {'DATABASE_URL': DB_URL if 'DATABASE_URL' in os.environ else '',
+                'SKILLLENS_DATA_KEY': FERNET_KEY,
+                'SMTP_FROM': os.getenv('SMTP_FROM', ''),
+                'LEGAL_OPERATOR': os.getenv('LEGAL_OPERATOR', ''),
+                'LEGAL_CONTACT_EMAIL': os.getenv('LEGAL_CONTACT_EMAIL', ''),
+                'LEGAL_REVIEWED': os.getenv('LEGAL_REVIEWED', '') if os.getenv('LEGAL_REVIEWED') == 'yes' else '',
+                'LEGAL_POSTAL_ADDRESS': os.getenv('LEGAL_POSTAL_ADDRESS', '')}
+    if not NO_CARD_BETA:
+        required.update({k: os.getenv(k, '') for k in (
+            'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_PLAN_ID',
+            'RAZORPAY_WEBHOOK_SECRET', 'SKILLLENS_PRO_PRICE_INR', 'SKILLLENS_CLAMAV_ADDR')})
+    if not os.getenv('BREVO_API_KEY'):
+        required['SMTP_HOST'] = os.getenv('SMTP_HOST', '')
+    if NO_CARD_BETA and not os.getenv('BREVO_API_KEY'):
+        raise RuntimeError('Render beta requires Brevo HTTPS API email; SMTP is blocked by Render Free.')
+    missing = [k for k, v in required.items() if not v]
+    if missing:
+        raise RuntimeError('Production configuration missing: ' + ', '.join(missing))
+    if any('REPLACE' in v or 'example.com' in v for v in required.values()) or 'REPLACE' in DB_URL or 'example.com' in SITE_URL:
+        raise RuntimeError('Replace all example credentials, placeholder domains and operator details before production.')
+    if not DB_URL.startswith('postgresql+') or not SITE_URL.startswith('https://'):
+        raise RuntimeError('Production requires PostgreSQL and an HTTPS SKILLLENS_SITE_URL')
+    if not os.getenv('BREVO_API_KEY') and (not os.getenv('SMTP_USERNAME') or not os.getenv('SMTP_PASSWORD')):
+        raise RuntimeError('Production email requires SMTP credentials or BREVO_API_KEY')
+if FERNET_KEY:
+    cipher = Fernet(FERNET_KEY.encode())
+else:
+    # Development-only persistent key. Production NEVER generates a secret at boot.
+    key_path = Path(os.getenv('SKILLLENS_DEV_KEY_FILE', './.skilllens_dev_key'))
+    key_path.parent.mkdir(parents=True, exist_ok=True)
+    if not key_path.exists():
+        try:
+            fd = os.open(key_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            with os.fdopen(fd, 'wb') as output:
+                output.write(Fernet.generate_key())
+        except FileExistsError:
+            pass
+    cipher = Fernet(key_path.read_bytes())
+engine = create_engine(DB_URL, pool_pre_ping=True, connect_args={'check_same_thread': False} if DB_URL.startswith('sqlite') else {})
+Session = sessionmaker(engine, expire_on_commit=False)
+
+
+def utcnow():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class User(Base):
+    __tablename__ = 'users'
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(Text)
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    tier: Mapped[str] = mapped_column(String(16), default='free')
+    provider_subscription_id: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True)
+    subscription_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SessionToken(Base):
+    __tablename__ = 'sessions'
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    csrf_hash: Mapped[str] = mapped_column(String(64))
+    user_id: Mapped[str] = mapped_column(String(40), ForeignKey('users.id', ondelete='CASCADE'), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class OneTimeToken(Base):
+    __tablename__ = 'one_time_tokens'
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(40), ForeignKey('users.id', ondelete='CASCADE'))
+    purpose: Mapped[str] = mapped_column(String(20))
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class Usage(Base):
+    __tablename__ = 'usage'
+    __table_args__ = (UniqueConstraint('user_id', 'period', 'feature'),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(40), ForeignKey('users.id', ondelete='CASCADE'))
+    period: Mapped[str] = mapped_column(String(7))
+    feature: Mapped[str] = mapped_column(String(20))
+    used: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class SavedReport(Base):
+    __tablename__ = 'saved_reports'
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(40), ForeignKey('users.id', ondelete='CASCADE'), index=True)
+    title: Mapped[str] = mapped_column(String(160))
+    encrypted_report: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class WebhookEvent(Base):
+    __tablename__ = 'webhook_events'
+    id: Mapped[str] = mapped_column(String(140), primary_key=True)
+    processed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class RateWindow(Base):
+    __tablename__ = 'rate_windows'
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+def init_db():
+    # Schema bootstrap for fresh installations. For existing production databases,
+    # apply reviewed migrations before deploying incompatible schema changes.
+    Base.metadata.create_all(engine)
+    if NO_CARD_BETA:
+        # Render Free has no always-on background worker; purge expired records on wake.
+        from .cleanup import purge
+        purge()
+
+
+def digest(value: str) -> str:
+    return hashlib.sha256(value.encode()).hexdigest()
+
+
+def throttle(key: str, limit: int, seconds: int):
+    """Persistent fixed-window throttling. Needs an upstream WAF for distributed flood protection."""
+    key = digest(key)
+    now = utcnow()
+    with Session.begin() as db:
+        if engine.dialect.name == 'postgresql':
+            from sqlalchemy.dialects.postgresql import insert
+        else:
+            from sqlalchemy.dialects.sqlite import insert
+        stmt = insert(RateWindow).values(key=key, count=0, expires_at=now + timedelta(seconds=seconds))
+        db.execute(stmt.on_conflict_do_nothing(index_elements=['key']))
+        # Concurrent increment guarded in SQL; reset stale window atomically.
+        db.execute(update(RateWindow).where(RateWindow.key == key, RateWindow.expires_at <= now)
+                   .values(count=0, expires_at=now + timedelta(seconds=seconds)))
+        updated = db.execute(update(RateWindow).where(RateWindow.key == key, RateWindow.count < limit)
+                             .values(count=RateWindow.count + 1))
+        if updated.rowcount == 0:
+            raise HTTPException(429, 'Too many attempts. Please try again later.')
+
+
+def identity_email(raw: str) -> str:
+    return raw.strip().lower()
+
+
+def make_login_cookie(response: Response, token: str):
+    response.set_cookie(COOKIE_NAME, token, max_age=AUTH_DAYS * 86400, secure=PROD,
+                        httponly=True, samesite='lax', path='/')
+
+
+def session_auth(request: Request, check_csrf: bool = False):
+    token = request.cookies.get(COOKIE_NAME, '')
+    if not token:
+        raise HTTPException(401, 'Sign in to continue.')
+    with Session() as db:
+        obj = db.get(SessionToken, digest(token))
+        if not obj or obj.expires_at <= utcnow():
+            raise HTTPException(401, 'Your session has expired. Sign in again.')
+        u = db.get(User, obj.user_id)
+        if not u or not u.verified:
+            raise HTTPException(403, 'Verify your email before continuing.')
+        if check_csrf:
+            csrf = request.headers.get('x-csrf-token', '')
+            if not csrf or not hmac.compare_digest(digest(csrf), obj.csrf_hash):
+                raise HTTPException(403, 'Security token missing or invalid. Refresh the page.')
+        return u
+
+
+def require_user(request: Request) -> User:
+    if request.method not in ('GET', 'HEAD', 'OPTIONS'):
+        session_auth(request, check_csrf=True)
+    return session_auth(request)
+
+
+def send_email(to: str, subject: str, body: str):
+    brevo_api_key = os.getenv('BREVO_API_KEY', '')
+    if brevo_api_key:
+        try:
+            response = httpx.post(
+                'https://api.brevo.com/v3/smtp/email',
+                headers={'api-key': brevo_api_key, 'accept': 'application/json'},
+                json={'sender': {'email': os.environ['SMTP_FROM'], 'name': 'SkillLens'},
+                      'to': [{'email': to}], 'subject': subject, 'textContent': body},
+                timeout=12.0,
+            )
+            response.raise_for_status()
+        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+            raise HTTPException(503, 'Email delivery unavailable. Please try again later.') from exc
+        return
+    host = os.getenv('SMTP_HOST', '')
+    if not host:
+        if PROD:
+            raise HTTPException(503, 'Email service unavailable.')
+        return
+    msg = EmailMessage()
+    msg['To'], msg['From'], msg['Subject'] = to, os.environ['SMTP_FROM'], subject
+    msg.set_content(body)
+    with smtplib.SMTP(host, int(os.getenv('SMTP_PORT', '587')), timeout=12) as mail:
+        mail.starttls()
+        mail.login(os.environ['SMTP_USERNAME'], os.environ['SMTP_PASSWORD'])
+        mail.send_message(msg)
+
+
+def create_one_time(user_id: str, purpose: str) -> str:
+    token = secrets.token_urlsafe(40)
+    with Session.begin() as db:
+        db.add(OneTimeToken(token_hash=digest(token), user_id=user_id, purpose=purpose,
+                            expires_at=utcnow() + timedelta(minutes=30)))
+    return token
+
+
+def usage_info(user: User) -> dict:
+    period = utcnow().strftime('%Y-%m')
+    limits = PRO_LIMITS if user.tier == 'pro' else FREE_LIMITS
+    with Session() as db:
+        records = db.scalars(select(Usage).where(Usage.user_id == user.id, Usage.period == period)).all()
+    current = {record.feature: record.used for record in records}
+    return {k: {'used': current.get(k, 0), 'limit': v} for k, v in limits.items()}
+
+
+def charge(user: User, feature: str):
+    limits = PRO_LIMITS if user.tier == 'pro' else FREE_LIMITS
+    if feature not in limits:
+        raise HTTPException(400, 'Unknown feature')
+    period = utcnow().strftime('%Y-%m')
+    with Session.begin() as db:
+        if engine.dialect.name == 'postgresql':
+            from sqlalchemy.dialects.postgresql import insert
+        else:
+            from sqlalchemy.dialects.sqlite import insert
+        db.execute(insert(Usage).values(user_id=user.id, period=period, feature=feature, used=0)
+                   .on_conflict_do_nothing(index_elements=['user_id', 'period', 'feature']))
+        q = update(Usage).where(Usage.user_id == user.id, Usage.period == period,
+                                Usage.feature == feature, Usage.used < limits[feature])
+        result = db.execute(q.values(used=Usage.used + 1))
+        if not result.rowcount:
+            raise HTTPException(402, f'{feature.title()} monthly limit reached. Upgrade your plan to continue.')
+
+
+def public_user(user: User):
+    return {'email': user.email, 'verified': user.verified, 'tier': user.tier,
+            'billing_status': user.subscription_status, 'usage': usage_info(user)}
+
+
+router = APIRouter(prefix='/api')
+
+
+class Credentials(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=12, max_length=128)
+
+
+@router.post('/auth/register')
+def register(data: Credentials, request: Request):
+    email = identity_email(data.email)
+    throttle('register:' + (request.client.host if request.client else 'unknown'), 30, 3600)
+    throttle('register-email:' + email, 3, 3600)
+    if not re.search(r'[A-Za-z]', data.password) or not re.search(r'\d', data.password):
+        raise HTTPException(422, 'Password needs letters and a number.')
+    user = User(id=secrets.token_hex(16), email=email, password_hash=ph.hash(data.password),
+                verified=(not PROD and not os.getenv('SMTP_HOST')))
+    with Session.begin() as db:
+        if db.scalar(select(User).where(User.email == email)):
+            raise HTTPException(409, 'Account already exists. Sign in or reset your password.')
+        db.add(user)
+        try:
+            db.flush()
+        except IntegrityError:
+            raise HTTPException(409, 'Account already exists.')
+    if not user.verified:
+        token = create_one_time(user.id, 'verify')
+        send_email(email, 'Verify your SkillLens account', f'Complete verification:\n{SITE_URL}/?verify={token}\n\nLink expires in 30 minutes.')
+    return {'message': 'Account created. Verify the link emailed to you.' if not user.verified else 'Development account created. Sign in now.'}
+
+
+@router.get('/auth/verify')
+def verify(token: str):
+    with Session.begin() as db:
+        entry = db.get(OneTimeToken, digest(token))
+        if not entry or entry.purpose != 'verify' or entry.expires_at <= utcnow():
+            raise HTTPException(400, 'Invalid or expired verification link.')
+        u = db.get(User, entry.user_id)
+        if not u:
+            raise HTTPException(404, 'Account not found.')
+        u.verified = True
+        db.delete(entry)
+    return {'message': 'Email verified. You can sign in.'}
+
+
+@router.post('/auth/login')
+def login(data: Credentials, request: Request, response: Response):
+    email = identity_email(data.email)
+    throttle('login-ip:' + (request.client.host if request.client else ''), 50, 3600)
+    throttle('login:' + email, 10, 900)
+    with Session.begin() as db:
+        user = db.scalar(select(User).where(User.email == email))
+        try:
+            if not user:
+                ph.verify(ph.hash('nottherightpassword123'), data.password)  # burn time for unknown accounts
+                raise HTTPException(401, 'Incorrect email or password.')
+            ph.verify(user.password_hash, data.password)
+        except (argon_error.VerifyMismatchError, argon_error.VerificationError):
+            raise HTTPException(401, 'Incorrect email or password.')
+        if not user.verified:
+            raise HTTPException(403, 'Verify your email before signing in.')
+        token, csrf = secrets.token_urlsafe(48), secrets.token_urlsafe(32)
+        db.add(SessionToken(token_hash=digest(token), csrf_hash=digest(csrf), user_id=user.id,
+                            expires_at=utcnow() + timedelta(days=AUTH_DAYS)))
+    make_login_cookie(response, token)
+    return {'user': public_user(user), 'csrf': csrf}
+
+
+@router.get('/auth/me')
+def me(request: Request):
+    token = request.cookies.get(COOKIE_NAME, '')
+    if not token:
+        raise HTTPException(401, 'Not signed in.')
+    # CSRF cookie-independent state: returned only on first login, or freshly rotated on GET /me
+    # /me is same-origin and no CORS. Rotation invalidates older forms/tabs.
+    with Session.begin() as db:
+        session = db.get(SessionToken, digest(token))
+        if not session or session.expires_at <= utcnow():
+            raise HTTPException(401, 'Session expired.')
+        user = db.get(User, session.user_id)
+        if not user or not user.verified:
+            raise HTTPException(401, 'Account not verified.')
+        csrf = secrets.token_urlsafe(32)
+        session.csrf_hash = digest(csrf)
+    return {'user': public_user(user), 'csrf': csrf}
+
+
+@router.post('/auth/logout')
+def logout(request: Request, response: Response, _=Depends(require_user)):
+    with Session.begin() as db:
+        db.execute(delete(SessionToken).where(SessionToken.token_hash == digest(request.cookies.get(COOKIE_NAME, ''))))
+    response.delete_cookie(COOKIE_NAME, path='/', secure=PROD, httponly=True, samesite='lax')
+    return {'ok': True}
+
+
+class EmailOnly(BaseModel):
+    email: EmailStr
+
+
+@router.post('/auth/forgot-password')
+def forgot(data: EmailOnly, request: Request):
+    email = identity_email(data.email)
+    throttle('reset-ip:' + (request.client.host if request.client else ''), 8, 3600)
+    throttle('reset-email:' + email, 3, 3600)
+    with Session() as db:
+        user = db.scalar(select(User).where(User.email == email))
+    if user:
+        token = create_one_time(user.id, 'reset')
+        send_email(email, 'Reset your SkillLens password', f'Reset your password:\n{SITE_URL}/?reset={token}\n\nLink expires in 30 minutes.')
+    return {'message': 'If this account exists, a reset link has been sent.'}
+
+
+class ResetBody(BaseModel):
+    token: str = Field(min_length=30, max_length=200)
+    new_password: str = Field(min_length=12, max_length=128)
+
+
+
+@router.post('/auth/resend-verification')
+def resend_verification(data: EmailOnly, request: Request):
+    email = identity_email(data.email)
+    throttle('resend-ip:' + (request.client.host if request.client else ''), 12, 3600)
+    throttle('resend-email:' + email, 3, 3600)
+    with Session() as db:
+        u = db.scalar(select(User).where(User.email == email))
+    if u and not u.verified:
+        token = create_one_time(u.id, 'verify')
+        send_email(email, 'Verify your SkillLens account',
+                   f'Complete verification:\n{SITE_URL}/?verify={token}\n\nLink expires in 30 minutes.')
+    return {'message': 'If that account needs verification, a new link has been sent.'}
+
+@router.post('/auth/reset-password')
+def reset(data: ResetBody, request: Request):
+    throttle('reset-use:' + (request.client.host if request.client else ''), 12, 3600)
+    if not re.search('[A-Za-z]', data.new_password) or not re.search(r'\d', data.new_password):
+        raise HTTPException(422, 'Password needs letters and a number.')
+    with Session.begin() as db:
+        entry = db.get(OneTimeToken, digest(data.token))
+        if not entry or entry.purpose != 'reset' or entry.expires_at <= utcnow():
+            raise HTTPException(400, 'Invalid or expired reset link.')
+        u = db.get(User, entry.user_id)
+        u.password_hash = ph.hash(data.new_password)
+        db.execute(delete(SessionToken).where(SessionToken.user_id == u.id))
+        db.delete(entry)
+    return {'message': 'Password updated. Sign in again.'}
+
+
+@router.get('/usage')
+def usage(user: User = Depends(require_user)):
+    return {'tier': user.tier, 'features': usage_info(user)}
+
+
+class SaveBody(BaseModel):
+    title: str = Field(min_length=1, max_length=150)
+    report: dict
+
+
+@router.post('/reports')
+def save_report(data: SaveBody, user: User = Depends(require_user)):
+    serialized = json.dumps(data.report, ensure_ascii=False)
+    if len(serialized.encode()) > 150000:
+        raise HTTPException(413, 'Report too large.')
+    with Session.begin() as db:
+        existing = db.scalar(select(func.count()).select_from(SavedReport).where(SavedReport.user_id == user.id,
+                                                                                SavedReport.expires_at > utcnow()))
+        if existing >= (100 if user.tier == 'pro' else 5):
+            raise HTTPException(402, 'Saved report limit reached. Delete an old report or upgrade.')
+        item = SavedReport(id=secrets.token_hex(16), user_id=user.id, title=data.title,
+                           encrypted_report=cipher.encrypt(serialized.encode()).decode(),
+                           expires_at=utcnow() + timedelta(days=30))
+        db.add(item)
+    return {'id': item.id, 'message': 'Report encrypted and saved for 30 days.'}
+
+
+@router.get('/reports')
+def list_reports(user: User = Depends(require_user)):
+    with Session() as db:
+        entries = db.scalars(select(SavedReport).where(SavedReport.user_id == user.id,
+                                                      SavedReport.expires_at > utcnow())
+                             .order_by(SavedReport.created_at.desc()).limit(100)).all()
+    return [{'id': x.id, 'title': x.title, 'created_at': x.created_at.isoformat() + 'Z',
+             'expires_at': x.expires_at.isoformat() + 'Z'} for x in entries]
+
+
+@router.get('/reports/{report_id}')
+def get_report(report_id: str, user: User = Depends(require_user)):
+    with Session() as db:
+        entry = db.get(SavedReport, report_id)
+        if not entry or entry.user_id != user.id or entry.expires_at < utcnow():
+            raise HTTPException(404, 'Report not found.')
+        try:
+            data = json.loads(cipher.decrypt(entry.encrypted_report.encode()).decode())
+        except (InvalidToken, ValueError):
+            raise HTTPException(503, 'Encryption key changed. Cannot decrypt this saved report.')
+    return data
+
+
+@router.delete('/reports/{report_id}')
+def delete_report(report_id: str, user: User = Depends(require_user)):
+    with Session.begin() as db:
+        result = db.execute(delete(SavedReport).where(SavedReport.id == report_id,
+                                                     SavedReport.user_id == user.id))
+        if result.rowcount == 0:
+            raise HTTPException(404, 'Report not found.')
+    return {'ok': True}
+
+
+@router.get('/billing/config')
+def billing_config():
+    return {'provider': 'razorpay', 'enabled': not NO_CARD_BETA and bool(os.getenv('RAZORPAY_KEY_ID') and os.getenv('RAZORPAY_PLAN_ID')),
+            'plan': 'Pro', 'currency': 'INR', 'price': os.getenv('SKILLLENS_PRO_PRICE_INR') or None,
+            'message': 'Pricing is displayed in Razorpay Checkout. Set your plan in the merchant dashboard.'}
+
+
+async def razorpay(method: str, path: str, **kwargs):
+    key, secret = os.getenv('RAZORPAY_KEY_ID', ''), os.getenv('RAZORPAY_KEY_SECRET', '')
+    if not key or not secret:
+        raise HTTPException(503, 'Billing is not configured.')
+    async with httpx.AsyncClient(timeout=15.0, auth=(key, secret)) as client:
+        try:
+            resp = await client.request(method, 'https://api.razorpay.com/v1/' + path, **kwargs)
+            resp.raise_for_status()
+            return resp.json()
+        except (httpx.HTTPError, ValueError):
+            raise HTTPException(502, 'Payment provider request failed. Try again later.')
+
+
+@router.post('/billing/checkout')
+async def billing_checkout(user: User = Depends(require_user)):
+    if NO_CARD_BETA:
+        raise HTTPException(503, 'Payments are not enabled during the free beta.')
+    if user.tier == 'pro':
+        raise HTTPException(409, 'You already have an active Pro subscription.')
+    plan = os.getenv('RAZORPAY_PLAN_ID', '')
+    if not plan:
+        raise HTTPException(503, 'Merchant billing plan is not configured.')
+    # Fail closed when the actual merchant plan differs from the advertised amount.
+    price = os.getenv('SKILLLENS_PRO_PRICE_INR', '')
+    if price:
+        try:
+            advertised_paise = int(Decimal(price) * 100)
+        except (InvalidOperation, ValueError):
+            raise HTTPException(503, 'Merchant price configuration is invalid.')
+        actual_plan = await razorpay('GET', f'plans/{plan}')
+        if (actual_plan.get('item', {}).get('amount') != advertised_paise
+                or actual_plan.get('item', {}).get('currency') != 'INR'
+                or actual_plan.get('period') != 'monthly'
+                or actual_plan.get('interval') != 1):
+            raise HTTPException(503, 'Billing plan and advertised monthly price do not match.')
+    with Session() as db:
+        current = db.get(User, user.id)
+        if current.provider_subscription_id and current.subscription_status in ('created', 'authenticated', 'active', 'pending'):
+            subscription_id = current.provider_subscription_id
+        else:
+            subscription_id = None
+    if not subscription_id:
+        created = await razorpay('POST', 'subscriptions', json={
+            'plan_id': plan, 'total_count': 120, 'quantity': 1, 'customer_notify': False,
+            'notes': {'skilllens_user_id': user.id}})
+        subscription_id = created['id']
+        with Session.begin() as db:
+            current = db.get(User, user.id)
+            current.provider_subscription_id = subscription_id
+            current.subscription_status = 'created'
+    return {'key': os.environ['RAZORPAY_KEY_ID'], 'subscription_id': subscription_id,
+            'name': 'SkillLens Pro', 'email': user.email}
+
+
+@router.post('/billing/cancel')
+async def cancel_subscription(user: User = Depends(require_user)):
+    if not user.provider_subscription_id:
+        raise HTTPException(400, 'No subscription linked to this account.')
+    # Request cancellation at cycle end; entitlements change via authenticated webhook.
+    data = await razorpay('POST', f'subscriptions/{user.provider_subscription_id}/cancel',
+                          json={'cancel_at_cycle_end': 1})
+    return {'status': data.get('status'), 'cancel_at_cycle_end': data.get('cancel_at_cycle_end', True),
+            'message': 'Cancellation requested. Your plan will update after Razorpay confirms it.'}
+
+
+@router.post('/webhooks/razorpay')
+async def razorpay_webhook(request: Request):
+    secret = os.getenv('RAZORPAY_WEBHOOK_SECRET', '')
+    if not secret:
+        raise HTTPException(503, 'Webhook is not configured.')
+    payload = await request.body()
+    if len(payload) > 100000:
+        raise HTTPException(413, 'Webhook too large.')
+    provided = request.headers.get('x-razorpay-signature', '')
+    signature = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(signature, provided):
+        raise HTTPException(400, 'Invalid webhook signature.')
+    try:
+        event = json.loads(payload)
+    except ValueError:
+        raise HTTPException(400, 'Invalid JSON.')
+    event_id = request.headers.get('x-razorpay-event-id', '')
+    if not event_id or len(event_id) > 140:
+        raise HTTPException(400, 'Missing event ID.')
+    with Session() as db:
+        if db.get(WebhookEvent, event_id):
+            return {'ok': True, 'duplicate': True}
+    if not str(event.get('event', '')).startswith('subscription.'):
+        with Session.begin() as db:
+            db.merge(WebhookEvent(id=event_id))
+        return {'ok': True}
+    payload_sub = event.get('payload', {}).get('subscription', {}).get('entity', {})
+    sub_id = payload_sub.get('id', '')
+    if not re.fullmatch(r'sub_[A-Za-z0-9]+', sub_id):
+        raise HTTPException(400, 'Malformed subscription event.')
+    # Query source-of-truth state: handles out-of-order webhook deliveries.
+    current = await razorpay('GET', f'subscriptions/{sub_id}')
+    status = current.get('status', '')
+    with Session.begin() as db:
+        if db.get(WebhookEvent, event_id):
+            return {'ok': True, 'duplicate': True}
+        user = db.scalar(select(User).where(User.provider_subscription_id == sub_id))
+        if not user:
+            # Webhook can race with creation response; verified subscription notes tie it to the creator.
+            claimed = (current.get('notes') or {}).get('skilllens_user_id', '')
+            proposed = db.get(User, claimed) if claimed else None
+            if proposed and proposed.provider_subscription_id in (None, sub_id):
+                proposed.provider_subscription_id = sub_id
+                user = proposed
+        if user:
+            user.subscription_status = status
+            user.tier = 'pro' if status == 'active' and current.get('plan_id') == os.getenv('RAZORPAY_PLAN_ID') else 'free'
+        db.add(WebhookEvent(id=event_id))
+    return {'ok': True}
+
+
+class DeleteAccount(BaseModel):
+    password: str
+
+
+@router.post('/account/delete')
+def delete_account(data: DeleteAccount, request: Request, response: Response, user: User = Depends(require_user)):
+    try:
+        ph.verify(user.password_hash, data.password)
+    except (argon_error.VerifyMismatchError, argon_error.VerificationError):
+        raise HTTPException(403, 'Password incorrect.')
+    if user.provider_subscription_id and user.subscription_status not in (None, 'cancelled', 'completed', 'expired'):
+        raise HTTPException(409, 'Cancel your subscription and wait for cancellation confirmation before deleting your account.')
+    with Session.begin() as db:
+        for model in (SessionToken, OneTimeToken, Usage, SavedReport):
+            db.execute(delete(model).where(model.user_id == user.id))
+        db.execute(delete(User).where(User.id == user.id))
+    response.delete_cookie(COOKIE_NAME, path='/', secure=PROD, httponly=True, samesite='lax')
+    return {'ok': True, 'message': 'Account and saved reports deleted.'}

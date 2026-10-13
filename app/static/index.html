@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="SkillLens is a privacy-minded resume and job-description analysis tool. See documented skill matches, gaps, and practical improvements." />
+  <title>SkillLens — Find your role fit</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell nav">
+      <a class="brand" href="/" aria-label="SkillLens home">
+        <span class="mark" aria-hidden="true"><svg viewBox="0 0 36 36"><path d="M8 24V11h8l5 7 7-11v19h-8l-5-7-7 5Z" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span>skill<span class="brand-accent">lens</span><span class="brand-dot">.</span></span>
+      </a>
+      <nav class="toplinks" aria-label="Main navigation"><a href="#workspace">Analyzer</a><a href="#modelLab">Model lab</a><a href="#how">How it works</a></nav>
+      <button class="account-link" id="accountButton" type="button">Sign in</button>
+    </div>
+  </header>
+  <main>
+    <section class="hero shell">
+      <div class="eyebrow"><span class="glimmer">✦</span> RESUME INTELLIGENCE, WITHOUT THE GUESSWORK</div>
+      <h1>Your next opportunity<br />starts with <em>better alignment.</em></h1>
+      <p class="hero-sub">Understand how your resume aligns with a role, uncover missing evidence, and make every application more intentional.</p>
+      <div class="hero-tags"><span>✳ Evidence-based match</span><span>✳ Actionable skill gaps</span><span>✳ Private user account</span></div>
+    </section>
+    <section class="shell workspace" id="workspace" aria-label="Resume analyzer workspace">
+      <div class="workspace-header"><div><span class="step-eyebrow">YOUR WORKSPACE</span><h2>Analyze your next application</h2></div><div class="privacy-caption"><span class="lock-icon">⌑</span> No persistent resume storage</div></div>
+      <div class="workspace-grid">
+        <form id="analyzerForm" class="panel form-panel" novalidate>
+          <div class="panel-intro"><span class="panel-icon">01</span><div><h3>Tell us about the role</h3><p>Add the job description you are applying for.</p></div></div>
+          <div class="field"><label for="roleTitle">TARGET ROLE <span class="optional">OPTIONAL</span></label><input id="roleTitle" maxlength="120" type="text" placeholder="e.g. Junior Backend Engineer" autocomplete="off" /></div>
+          <div class="field"><div class="field-top"><label for="jobDescription">JOB DESCRIPTION <span class="required">*</span></label><span class="counter" id="jdCount">0 characters</span></div><textarea id="jobDescription" rows="8" required minlength="80" maxlength="40000" placeholder="Paste the role's responsibilities, required skills and preferred qualifications here…"></textarea><span class="field-note">Include required and preferred skills for the most useful analysis.</span></div>
+          <div class="form-divider"></div>
+          <div class="panel-intro resume-intro"><span class="panel-icon">02</span><div><h3>Bring your resume</h3><p>Free beta: paste your resume text below. Document uploads require an antivirus scanner and are temporarily unavailable.</p></div></div>
+          <div class="tabs" role="tablist" aria-label="Resume input method"><button type="button" role="tab" aria-selected="false" aria-controls="uploadContent" id="uploadTab" class="tab" style="display:none" disabled>Upload file</button><button type="button" role="tab" aria-selected="true" aria-controls="pasteContent" id="pasteTab" class="tab active" aria-selected="true">Paste text</button></div>
+          <div id="uploadContent" hidden role="tabpanel" aria-labelledby="uploadTab"><input type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" id="resumeFile" class="sr-only" /><label for="resumeFile" id="dropzone" class="dropzone"><span class="upload-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round"><path d="M12 17V4m0 0L7 9m5-5 5 5"/><path d="M4 16v3c0 1 .8 2 2 2h12c1 0 2-1 2-2v-3"/></svg></span><strong id="fileTitle">Drop your resume here</strong><span id="fileSubtitle">or <u>browse files</u> from your device</span><small>PDF, DOCX or TXT · Maximum 6 MB</small></label></div>
+          <div id="pasteContent" role="tabpanel" aria-labelledby="pasteTab"><div class="field"><div class="field-top"><label for="resumeText">RESUME TEXT</label><span class="counter" id="resumeCount">0 characters</span></div><textarea id="resumeText" rows="9" maxlength="55000" placeholder="Paste your full resume, including projects, work experience, skills, and education…"></textarea></div></div>
+          <div class="advanced-settings">
+            <div class="advanced-title"><strong>Analysis intelligence</strong><span id="engineStatus" class="engine-status">Checking engines…</span></div>
+            <label class="mode-label" for="semanticMode">Matching engine</label>
+            <select id="semanticMode"><option value="classic">Classic NLP · included, fast</option><option value="embeddings">Local sentence embeddings · optional install</option></select>
+            <label class="check-row"><input type="checkbox" id="customEvidence" /> Evaluate evidence with custom-trained model <small>(experimental)</small></label>
+            <p class="settings-note" id="engineHelp">Advanced engines only work when installed and configured on the server.</p>
+          </div>
+          <div id="formError" class="alert" role="alert" hidden></div>
+          <button id="analyzeButton" type="submit" class="primary-btn"><span id="analyzeText">Analyze my resume</span><span class="btn-arrow">↗</span></button>
+          <div class="under-actions"><button class="link-btn" type="button" id="trySample">Try with sample data <span>↗</span></button><button class="link-btn subtle" type="button" id="clearButton">Clear form</button></div>
+          <div class="no-claims"><span>ⓘ</span> Match percentages are estimates from an explainable NLP model, <strong>not official ATS scores</strong> or hiring predictions.</div>
+        </form>
+        <section class="panel result-panel" aria-label="Analysis results">
+          <div id="emptyState" class="empty-state"><span class="eyebrow mini">YOUR APPLICATION SNAPSHOT</span><div class="empty-illustration" aria-hidden="true"><div class="sheet-back"></div><div class="sheet-front"><div class="avatar-circle"></div><div class="line long"></div><div class="line short"></div><div class="split"><div class="line"></div><div class="check">✓</div></div><div class="line med"></div><div class="line short"></div></div><div class="score-float">↗<strong>Fit insights</strong></div><div class="sparkle s1">✦</div><div class="sparkle s2">✧</div></div><h3>Clarity for your next step.</h3><p>Paste your resume text and job description to see where your experience connects—and what to improve next.</p><div class="preview-benefits"><div><span>01</span> Understand alignment</div><div><span>02</span> Spot missing evidence</div><div><span>03</span> Plan your improvements</div></div></div>
+          <div id="loadingState" class="loading-state" hidden><div class="loader"></div><h3>Reading the signals…</h3><p>Checking documented skills, relevant wording and resume structure.</p></div>
+          <div id="resultState" class="result-state" hidden>
+            <div class="result-heading"><div><span class="step-eyebrow">YOUR ROLE MATCH REPORT</span><h3 id="reportTitle">Application analysis</h3></div><button id="printReport" class="icon-action" type="button" title="Print or save report as PDF" aria-label="Print or save report as PDF">⇩</button></div>
+            <div class="score-area"><div class="score-ring" id="scoreRing"><div><span id="scoreValue">—</span><small>/ 100</small></div></div><div class="score-copy"><span class="result-badge" id="verdict">Assessment</span><h4>Documented job alignment</h4><p id="reportSummary"></p></div></div>
+            <div class="mini-metrics"><div><span>CORE SKILLS</span><strong id="coreStat">—</strong><small>Explicitly matched</small></div><div><span>PREFERRED</span><strong id="preferredStat">—</strong><small>Explicitly matched</small></div><div><span>RESUME CHECKS</span><strong id="structureStat">—</strong><small>Essentials detected</small></div></div>
+            <div class="results-tabs" role="tablist" aria-label="Analysis report sections"><button type="button" class="results-tab selected" role="tab" aria-selected="true" data-target="matchSection">Match</button><button type="button" class="results-tab" role="tab" aria-selected="false" data-target="evidenceSection">Evidence</button><button type="button" class="results-tab" role="tab" aria-selected="false" data-target="tipsSection">Improvements</button><button type="button" class="results-tab" role="tab" aria-selected="false" data-target="interviewSection">Interview prep</button><button type="button" class="results-tab" role="tab" aria-selected="false" data-target="rewriteSection">Rewrite studio</button></div>
+            <section id="matchSection" class="report-section active" role="tabpanel"><h4>How your score adds up</h4><div id="breakdown"></div><h4 class="minor-head">Skill coverage</h4><div class="skill-grid"><div><h5><span class="status-dot yes"></span> Core skills present</h5><div class="chips" id="matchedSkills"></div></div><div><h5><span class="status-dot no"></span> Not found in resume</h5><div class="chips" id="missingSkills"></div></div></div><p class="section-caption" id="reportNotes"></p></section>
+            <section id="evidenceSection" class="report-section" role="tabpanel" hidden><h4>Where we found the skills</h4><p class="section-caption">Snippets show where the resume mentions these terms—not proof of proficiency.</p><div id="evidenceList" class="evidence-list"></div><h4 class="minor-head">Resume essentials</h4><div id="sectionChecks" class="checks-list"></div></section>
+            <section id="tipsSection" class="report-section" role="tabpanel" hidden><h4>Your improvement roadmap</h4><p class="section-caption">Make only changes you can support with genuine experience.</p><div id="improvementList" class="improvement-list"></div></section>
+            <section id="interviewSection" class="report-section" role="tabpanel" hidden><h4>Practice the conversations</h4><p class="section-caption">Questions tailored to detected requirements—not actual employer interview questions.</p><div id="interviewList" class="interview-list"></div></section>
+            <section id="rewriteSection" class="report-section rewrite-panel" role="tabpanel" hidden>
+              <h4>Evidence-first rewrite studio</h4><p class="section-caption">Select a grounded rewrite strategy. Generated suggestions remain reviewable and are never silently inserted.</p>
+              <div class="rewrite-controls"><label for="rewriteMode">Rewrite engine</label>
+                <select id="rewriteMode"><option value="safe">Safe · source-preserving (no API)</option><option value="llm">AI-assisted · configured Ollama / API</option></select>
+                <label class="check-row"><input type="checkbox" id="aiConsent" /> I consent to sending redacted excerpts to a configured external provider <small>(only required for external AI)</small></label>
+                <button type="button" class="primary-btn" id="rewriteButton">Generate tailored draft ↗</button>
+              </div>
+              <div id="rewriteError" role="alert" class="alert" hidden></div><p id="rewriteInfo" class="settings-note"></p>
+              <div id="rewriteContent" hidden>
+                <h4 class="minor-head">Review suggested edits</h4><div id="suggestionList" class="suggestion-list"></div>
+                <label for="resumeDraft" class="draft-label">YOUR EDITABLE RESUME DRAFT</label>
+                <textarea id="resumeDraft" rows="14" maxlength="55000" spellcheck="true"></textarea>
+                <div class="draft-actions"><button class="secondary-btn" type="button" id="draftDocx">Download DOCX</button><button class="secondary-btn" type="button" id="draftTxt">Download TXT</button><button class="secondary-btn" type="button" id="draftCopy">Copy draft</button></div>
+                <p id="draftDisclaimer" class="section-caption"></p>
+              </div>
+            </section>
+            <div class="report-actions"><button id="saveReportButton" class="secondary-btn" type="button">☷ Save encrypted report</button><button id="exportButton" class="secondary-btn" type="button">↓ Export report (.md)</button><button id="newAnalysis" class="text-btn" type="button">↻ New analysis</button></div>
+          </div>
+        </section>
+      </div>
+    </section>
+    <section class="shell model-lab" id="modelLab">
+      <div class="lab-heading"><span class="eyebrow mini">BUILT TO BE AUDITABLE</span><h2>Your model, your evidence.</h2><p>Use a real machine-learning pipeline instead of claiming an invented ATS score. The demo-trained model is experimental and must be validated on authentic, consented human labels before real decisions.</p></div>
+      <div class="lab-grid"><article><span class="lab-icon">◈</span><h3>Pretrained embeddings</h3><p>Enable sentence-transformers to find related resume and requirement passages even when exact keywords differ.</p><span id="embeddingBadge" class="engine-state">Checking…</span></article><article><span class="lab-icon">⌘</span><h3>Train your matcher</h3><p>Supervised requirement ↔ evidence classifier with group-separated validation, offline training CLI, and evaluation metadata.</p><span id="modelBadge" class="engine-state">Checking…</span></article><article><span class="lab-icon">✦</span><h3>Grounded AI edits</h3><p>Extractive safe mode always works. Optional local Ollama or external AI can propose copyedits with automated checks and human review.</p><span id="llmBadge" class="engine-state">Checking…</span></article></div>
+      <p class="lab-foot">Privacy: text input is processed without raw resume persistence; analysis reports are stored encrypted only when you explicitly save them, and expire after 30 days. External AI use requires separate consent.</p>
+    </section>
+    <section id="how" class="how shell"><div class="how-lead"><span class="eyebrow mini">THE SKILLLENS METHOD</span><h2>Useful feedback.<br/><em>No mystery number.</em></h2><p>We make the analysis understandable, so you know what to fix and why.</p></div><div class="how-cards"><article><span class="how-symbol">✳</span><h3>Skills, in context</h3><p>See which requested technologies are explicitly documented and which need evidence.</p></article><article><span class="how-symbol">▤</span><h3>Structure checks</h3><p>Spot missing resume essentials, including projects, education and measurable outcomes.</p></article><article><span class="how-symbol">↗</span><h3>Truthful next steps</h3><p>Learn how to strengthen your resume without inventing experience or metrics.</p></article></div></section>
+  <section class="shell commercial-section" id="pricing"><div class="commercial-head"><span class="eyebrow mini">FAIR, TRANSPARENT PLANS</span><h2>Public beta — free to try.</h2><p>Each quota refreshes at the start of a calendar month (UTC). No AI score can guarantee selection.</p></div><div class="commercial-grid"><article class="plan-card"><span>FREE</span><h3>₹0</h3><p>5 job-match reports + 3 resume rewrites monthly; save up to 5 reports.</p><button id="freePlan" class="secondary-btn" type="button">Get started free</button></article><article class="plan-card pro" style="display:none"><span>PRO</span><h3 id="proPrice">Price set by merchant</h3><p>200 job-match reports + 100 rewrites monthly; up to 100 saved reports. Final price shown by Razorpay before payment.</p><button id="upgradeButton" class="primary-btn" type="button">Upgrade with Razorpay ↗</button></article></div></section>
+  </main>
+  <section class="account-backdrop" id="accountOverlay" hidden aria-label="SkillLens account">
+  <div class="account-dialog" role="dialog" aria-modal="true" aria-labelledby="accountHeading">
+  <div class="account-heading"><div><span class="eyebrow mini">SECURE ACCOUNT</span><h2 id="accountHeading">Welcome to SkillLens</h2></div><button class="close-account" id="closeAccount" type="button" aria-label="Close account dialog">×</button></div>
+  <div id="authArea"><div class="auth-tabs"><button id="signinTab" type="button" class="active">Sign in</button><button id="registerTab" type="button">Create account</button></div><form id="authForm"><label for="authEmail">Email address</label><input id="authEmail" type="email" required autocomplete="email" placeholder="you@example.com"/><label for="authPassword">Password (12+ characters, letters + numbers)</label><input id="authPassword" type="password" minlength="12" required autocomplete="current-password"/><button id="authSubmit" type="submit" class="primary-btn">Sign in ↗</button></form><button id="forgotPassword" type="button" class="link-btn">Forgot password?</button> <button id="resendVerification" type="button" class="link-btn">Resend verification email</button></div>
+  <div id="memberArea" hidden><p id="memberDetails"></p><div id="memberUsage" class="member-usage"></div><div class="member-controls"><button id="refreshReports" class="secondary-btn" type="button">My saved reports</button><button id="cancelPro" class="secondary-btn" type="button">Cancel subscription</button><button id="logoutButton" class="secondary-btn" type="button">Sign out</button></div><div id="savedReports" class="saved-reports"></div><details class="delete-account"><summary>Delete my account and saved reports</summary><label for="deletePassword">Confirm your password</label><input id="deletePassword" type="password" autocomplete="current-password"/><button id="deleteAccountButton" class="danger-btn" type="button">Permanently delete account</button></details></div>
+  <p id="authMessage" class="auth-message" role="status"></p></div></section>
+  <footer class="footer shell"><div><strong>skill<span class="brand-accent">lens</span>.</strong><span>Make your experience easier to see.</span></div><p>Local-first AI studio · Grounded rewriting · Never an official ATS score</p><div class="legal-links"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="#pricing">Pricing</a></div></footer>
+  <script src="/assets/saas.js" defer></script><script src="/assets/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+services:
+  skilllens:
+    build: .
+    ports:
+      - '127.0.0.1:8000:8000'
+    environment:
+      - SKILLLENS_CUSTOM_MODEL=${SKILLLENS_CUSTOM_MODEL:-}
+      - SKILLLENS_EMBED_MODEL=${SKILLLENS_EMBED_MODEL:-}
+      - SKILLLENS_LLM_PROVIDER=${SKILLLENS_LLM_PROVIDER:-}
+      - SKILLLENS_LLM_MODEL=${SKILLLENS_LLM_MODEL:-}
+      - SKILLLENS_LLM_BASE_URL=${SKILLLENS_LLM_BASE_URL:-https://api.openai.com/v1}
+      - SKILLLENS_LLM_API_KEY=${SKILLLENS_LLM_API_KEY:-}
+      - SKILLLENS_OLLAMA_URL=${SKILLLENS_OLLAMA_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - skilllens_dev_data:/srv/data
+    restart: unless-stopped
+
+volumes:
+  skilllens_dev_data:

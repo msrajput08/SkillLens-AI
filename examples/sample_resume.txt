@@ -1,0 +1,14 @@
+Alex Example
+alex@example.com | linkedin.com/in/alexexample | github.com/alexexample
+
+PROFESSIONAL SUMMARY
+Software engineering graduate building Java and Python services with attention to maintainability and test coverage.
+
+TECHNICAL SKILLS
+Java, Spring Boot, Spring Security, PostgreSQL, SQL, REST APIs, JWT, Git, Docker, Python, React, HTML, CSS, Unit Testing.
+
+PROJECTS
+TaskFlow - Developed a Spring Boot API for a task management application with role-based access control using JWT and PostgreSQL. Wrote JUnit unit tests for business logic and packaged the service with Docker.
+
+EDUCATION
+Bachelor of Engineering in Computer Engineering, Example University, 2026.

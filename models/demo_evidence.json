@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "dataset_kind": "synthetic_demo",
+  "created_at_utc": "2026-10-12T20:58:59.883067+00:00",
+  "training_records": 120,
+  "unique_groups": 12,
+  "evaluation": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "confusion_matrix": [
+      [
+        15,
+        0
+      ],
+      [
+        0,
+        15
+      ]
+    ],
+    "train_examples": 90,
+    "test_examples": 30,
+    "held_out_groups": [
+      "fastapi",
+      "java",
+      "testing"
+    ]
+  },
+  "warning": "EXPERIMENTAL; illustrative synthetic dataset, not real applicant outcomes."
+}

@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: skilllens-beta
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/ready
+    envVars:
+      - key: SKILLLENS_ENV
+        value: production
+      - key: SKILLLENS_LAUNCH_MODE
+        value: render_beta
+      - key: DATABASE_URL
+        sync: false
+      - key: SKILLLENS_SITE_URL
+        sync: false
+      - key: SKILLLENS_DATA_KEY
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: LEGAL_OPERATOR
+        sync: false
+      - key: LEGAL_POSTAL_ADDRESS
+        sync: false
+      - key: LEGAL_CONTACT_EMAIL
+        sync: false
+      - key: LEGAL_REVIEWED
+        sync: false

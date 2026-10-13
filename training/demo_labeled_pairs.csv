@@ -1,0 +1,121 @@
+requirement,evidence,label,group
+Requires hands-on experience with Java Spring Boot services for product features.,Built Java Spring Boot REST APIs and maintained backend components.,1,java
+Requires hands-on experience with Java Spring Boot services for product features.,"Wrote SQL joins, views and indexes for a reporting database.",0,java
+Candidates should demonstrate Java Spring Boot services in completed projects.,Project responsibility: Built Java Spring Boot REST APIs and maintained backend components.,1,java
+Candidates should demonstrate Java Spring Boot services in completed projects.,Packaged Python web apps in Docker containers.,0,java
+Looking for practical Java Spring Boot services and collaborative engineering.,Experience: Built Java Spring Boot REST APIs and maintained backend components using documented workflows.,1,java
+Looking for practical Java Spring Boot services and collaborative engineering.,Deployed workloads to AWS S3 and EC2 with IAM permissions.,0,java
+Position needs technical knowledge of Java Spring Boot services in real tasks.,Contribution: Built Java Spring Boot REST APIs and maintained backend components within team deliverables.,1,java
+Position needs technical knowledge of Java Spring Boot services in real tasks.,Built JavaScript browser features and used async requests.,0,java
+Show previous work involving Java Spring Boot services with concrete examples.,Relevant project work: Built Java Spring Boot REST APIs and maintained backend components during software development.,1,java
+Show previous work involving Java Spring Boot services with concrete examples.,Implemented Python FastAPI endpoints with OpenAPI documentation.,0,java
+Requires hands-on experience with Python data pipeline for product features.,"Built Python scripts to transform, validate and schedule data loads.",1,python
+Requires hands-on experience with Python data pipeline for product features.,Packaged Python web apps in Docker containers.,0,python
+Candidates should demonstrate Python data pipeline in completed projects.,"Project responsibility: Built Python scripts to transform, validate and schedule data loads.",1,python
+Candidates should demonstrate Python data pipeline in completed projects.,Deployed workloads to AWS S3 and EC2 with IAM permissions.,0,python
+Looking for practical Python data pipeline and collaborative engineering.,"Experience: Built Python scripts to transform, validate and schedule data loads using documented workflows.",1,python
+Looking for practical Python data pipeline and collaborative engineering.,Built JavaScript browser features and used async requests.,0,python
+Position needs technical knowledge of Python data pipeline in real tasks.,"Contribution: Built Python scripts to transform, validate and schedule data loads within team deliverables.",1,python
+Position needs technical knowledge of Python data pipeline in real tasks.,Implemented Python FastAPI endpoints with OpenAPI documentation.,0,python
+Show previous work involving Python data pipeline with concrete examples.,"Relevant project work: Built Python scripts to transform, validate and schedule data loads during software development.",1,python
+Show previous work involving Python data pipeline with concrete examples.,Wrote unit tests with pytest and CI regression checks.,0,python
+Requires hands-on experience with React frontend for product features.,"Developed React components, state management and responsive frontend UI.",1,react
+Requires hands-on experience with React frontend for product features.,Deployed workloads to AWS S3 and EC2 with IAM permissions.,0,react
+Candidates should demonstrate React frontend in completed projects.,"Project responsibility: Developed React components, state management and responsive frontend UI.",1,react
+Candidates should demonstrate React frontend in completed projects.,Built JavaScript browser features and used async requests.,0,react
+Looking for practical React frontend and collaborative engineering.,"Experience: Developed React components, state management and responsive frontend UI using documented workflows.",1,react
+Looking for practical React frontend and collaborative engineering.,Implemented Python FastAPI endpoints with OpenAPI documentation.,0,react
+Position needs technical knowledge of React frontend in real tasks.,"Contribution: Developed React components, state management and responsive frontend UI within team deliverables.",1,react
+Position needs technical knowledge of React frontend in real tasks.,Wrote unit tests with pytest and CI regression checks.,0,react
+Show previous work involving React frontend with concrete examples.,"Relevant project work: Developed React components, state management and responsive frontend UI during software development.",1,react
+Show previous work involving React frontend with concrete examples.,Configured PostgreSQL schema design and SQL migrations.,0,react
+Requires hands-on experience with SQL database queries for product features.,"Wrote SQL joins, views and indexes for a reporting database.",1,sql
+Requires hands-on experience with SQL database queries for product features.,Built JavaScript browser features and used async requests.,0,sql
+Candidates should demonstrate SQL database queries in completed projects.,"Project responsibility: Wrote SQL joins, views and indexes for a reporting database.",1,sql
+Candidates should demonstrate SQL database queries in completed projects.,Implemented Python FastAPI endpoints with OpenAPI documentation.,0,sql
+Looking for practical SQL database queries and collaborative engineering.,"Experience: Wrote SQL joins, views and indexes for a reporting database using documented workflows.",1,sql
+Looking for practical SQL database queries and collaborative engineering.,Wrote unit tests with pytest and CI regression checks.,0,sql
+Position needs technical knowledge of SQL database queries in real tasks.,"Contribution: Wrote SQL joins, views and indexes for a reporting database within team deliverables.",1,sql
+Position needs technical knowledge of SQL database queries in real tasks.,Configured PostgreSQL schema design and SQL migrations.,0,sql
+Show previous work involving SQL database queries with concrete examples.,"Relevant project work: Wrote SQL joins, views and indexes for a reporting database during software development.",1,sql
+Show previous work involving SQL database queries with concrete examples.,Implemented JWT authentication middleware and protected routes.,0,sql
+Requires hands-on experience with Docker containerization for product features.,Packaged Python web apps in Docker containers.,1,docker
+Requires hands-on experience with Docker containerization for product features.,Implemented Python FastAPI endpoints with OpenAPI documentation.,0,docker
+Candidates should demonstrate Docker containerization in completed projects.,Project responsibility: Packaged Python web apps in Docker containers.,1,docker
+Candidates should demonstrate Docker containerization in completed projects.,Wrote unit tests with pytest and CI regression checks.,0,docker
+Looking for practical Docker containerization and collaborative engineering.,Experience: Packaged Python web apps in Docker containers using documented workflows.,1,docker
+Looking for practical Docker containerization and collaborative engineering.,Configured PostgreSQL schema design and SQL migrations.,0,docker
+Position needs technical knowledge of Docker containerization in real tasks.,Contribution: Packaged Python web apps in Docker containers within team deliverables.,1,docker
+Position needs technical knowledge of Docker containerization in real tasks.,Implemented JWT authentication middleware and protected routes.,0,docker
+Show previous work involving Docker containerization with concrete examples.,Relevant project work: Packaged Python web apps in Docker containers during software development.,1,docker
+Show previous work involving Docker containerization with concrete examples.,Built NLP text preprocessing and tokenization pipelines.,0,docker
+Requires hands-on experience with AWS cloud deployment for product features.,Deployed workloads to AWS S3 and EC2 with IAM permissions.,1,aws
+Requires hands-on experience with AWS cloud deployment for product features.,Wrote unit tests with pytest and CI regression checks.,0,aws
+Candidates should demonstrate AWS cloud deployment in completed projects.,Project responsibility: Deployed workloads to AWS S3 and EC2 with IAM permissions.,1,aws
+Candidates should demonstrate AWS cloud deployment in completed projects.,Configured PostgreSQL schema design and SQL migrations.,0,aws
+Looking for practical AWS cloud deployment and collaborative engineering.,Experience: Deployed workloads to AWS S3 and EC2 with IAM permissions using documented workflows.,1,aws
+Looking for practical AWS cloud deployment and collaborative engineering.,Implemented JWT authentication middleware and protected routes.,0,aws
+Position needs technical knowledge of AWS cloud deployment in real tasks.,Contribution: Deployed workloads to AWS S3 and EC2 with IAM permissions within team deliverables.,1,aws
+Position needs technical knowledge of AWS cloud deployment in real tasks.,Built NLP text preprocessing and tokenization pipelines.,0,aws
+Show previous work involving AWS cloud deployment with concrete examples.,Relevant project work: Deployed workloads to AWS S3 and EC2 with IAM permissions during software development.,1,aws
+Show previous work involving AWS cloud deployment with concrete examples.,Built Java Spring Boot REST APIs and maintained backend components.,0,aws
+Requires hands-on experience with JavaScript web development for product features.,Built JavaScript browser features and used async requests.,1,javascript
+Requires hands-on experience with JavaScript web development for product features.,Configured PostgreSQL schema design and SQL migrations.,0,javascript
+Candidates should demonstrate JavaScript web development in completed projects.,Project responsibility: Built JavaScript browser features and used async requests.,1,javascript
+Candidates should demonstrate JavaScript web development in completed projects.,Implemented JWT authentication middleware and protected routes.,0,javascript
+Looking for practical JavaScript web development and collaborative engineering.,Experience: Built JavaScript browser features and used async requests using documented workflows.,1,javascript
+Looking for practical JavaScript web development and collaborative engineering.,Built NLP text preprocessing and tokenization pipelines.,0,javascript
+Position needs technical knowledge of JavaScript web development in real tasks.,Contribution: Built JavaScript browser features and used async requests within team deliverables.,1,javascript
+Position needs technical knowledge of JavaScript web development in real tasks.,Built Java Spring Boot REST APIs and maintained backend components.,0,javascript
+Show previous work involving JavaScript web development with concrete examples.,Relevant project work: Built JavaScript browser features and used async requests during software development.,1,javascript
+Show previous work involving JavaScript web development with concrete examples.,"Built Python scripts to transform, validate and schedule data loads.",0,javascript
+Requires hands-on experience with FastAPI backend for product features.,Implemented Python FastAPI endpoints with OpenAPI documentation.,1,fastapi
+Requires hands-on experience with FastAPI backend for product features.,Implemented JWT authentication middleware and protected routes.,0,fastapi
+Candidates should demonstrate FastAPI backend in completed projects.,Project responsibility: Implemented Python FastAPI endpoints with OpenAPI documentation.,1,fastapi
+Candidates should demonstrate FastAPI backend in completed projects.,Built NLP text preprocessing and tokenization pipelines.,0,fastapi
+Looking for practical FastAPI backend and collaborative engineering.,Experience: Implemented Python FastAPI endpoints with OpenAPI documentation using documented workflows.,1,fastapi
+Looking for practical FastAPI backend and collaborative engineering.,Built Java Spring Boot REST APIs and maintained backend components.,0,fastapi
+Position needs technical knowledge of FastAPI backend in real tasks.,Contribution: Implemented Python FastAPI endpoints with OpenAPI documentation within team deliverables.,1,fastapi
+Position needs technical knowledge of FastAPI backend in real tasks.,"Built Python scripts to transform, validate and schedule data loads.",0,fastapi
+Show previous work involving FastAPI backend with concrete examples.,Relevant project work: Implemented Python FastAPI endpoints with OpenAPI documentation during software development.,1,fastapi
+Show previous work involving FastAPI backend with concrete examples.,"Developed React components, state management and responsive frontend UI.",0,fastapi
+Requires hands-on experience with Automated unit testing for product features.,Wrote unit tests with pytest and CI regression checks.,1,testing
+Requires hands-on experience with Automated unit testing for product features.,Built NLP text preprocessing and tokenization pipelines.,0,testing
+Candidates should demonstrate Automated unit testing in completed projects.,Project responsibility: Wrote unit tests with pytest and CI regression checks.,1,testing
+Candidates should demonstrate Automated unit testing in completed projects.,Built Java Spring Boot REST APIs and maintained backend components.,0,testing
+Looking for practical Automated unit testing and collaborative engineering.,Experience: Wrote unit tests with pytest and CI regression checks using documented workflows.,1,testing
+Looking for practical Automated unit testing and collaborative engineering.,"Built Python scripts to transform, validate and schedule data loads.",0,testing
+Position needs technical knowledge of Automated unit testing in real tasks.,Contribution: Wrote unit tests with pytest and CI regression checks within team deliverables.,1,testing
+Position needs technical knowledge of Automated unit testing in real tasks.,"Developed React components, state management and responsive frontend UI.",0,testing
+Show previous work involving Automated unit testing with concrete examples.,Relevant project work: Wrote unit tests with pytest and CI regression checks during software development.,1,testing
+Show previous work involving Automated unit testing with concrete examples.,"Wrote SQL joins, views and indexes for a reporting database.",0,testing
+Requires hands-on experience with PostgreSQL database for product features.,Configured PostgreSQL schema design and SQL migrations.,1,postgres
+Requires hands-on experience with PostgreSQL database for product features.,Built Java Spring Boot REST APIs and maintained backend components.,0,postgres
+Candidates should demonstrate PostgreSQL database in completed projects.,Project responsibility: Configured PostgreSQL schema design and SQL migrations.,1,postgres
+Candidates should demonstrate PostgreSQL database in completed projects.,"Built Python scripts to transform, validate and schedule data loads.",0,postgres
+Looking for practical PostgreSQL database and collaborative engineering.,Experience: Configured PostgreSQL schema design and SQL migrations using documented workflows.,1,postgres
+Looking for practical PostgreSQL database and collaborative engineering.,"Developed React components, state management and responsive frontend UI.",0,postgres
+Position needs technical knowledge of PostgreSQL database in real tasks.,Contribution: Configured PostgreSQL schema design and SQL migrations within team deliverables.,1,postgres
+Position needs technical knowledge of PostgreSQL database in real tasks.,"Wrote SQL joins, views and indexes for a reporting database.",0,postgres
+Show previous work involving PostgreSQL database with concrete examples.,Relevant project work: Configured PostgreSQL schema design and SQL migrations during software development.,1,postgres
+Show previous work involving PostgreSQL database with concrete examples.,Packaged Python web apps in Docker containers.,0,postgres
+Requires hands-on experience with JWT API authentication for product features.,Implemented JWT authentication middleware and protected routes.,1,security
+Requires hands-on experience with JWT API authentication for product features.,"Built Python scripts to transform, validate and schedule data loads.",0,security
+Candidates should demonstrate JWT API authentication in completed projects.,Project responsibility: Implemented JWT authentication middleware and protected routes.,1,security
+Candidates should demonstrate JWT API authentication in completed projects.,"Developed React components, state management and responsive frontend UI.",0,security
+Looking for practical JWT API authentication and collaborative engineering.,Experience: Implemented JWT authentication middleware and protected routes using documented workflows.,1,security
+Looking for practical JWT API authentication and collaborative engineering.,"Wrote SQL joins, views and indexes for a reporting database.",0,security
+Position needs technical knowledge of JWT API authentication in real tasks.,Contribution: Implemented JWT authentication middleware and protected routes within team deliverables.,1,security
+Position needs technical knowledge of JWT API authentication in real tasks.,Packaged Python web apps in Docker containers.,0,security
+Show previous work involving JWT API authentication with concrete examples.,Relevant project work: Implemented JWT authentication middleware and protected routes during software development.,1,security
+Show previous work involving JWT API authentication with concrete examples.,Deployed workloads to AWS S3 and EC2 with IAM permissions.,0,security
+Requires hands-on experience with NLP text processing for product features.,Built NLP text preprocessing and tokenization pipelines.,1,nlp
+Requires hands-on experience with NLP text processing for product features.,"Developed React components, state management and responsive frontend UI.",0,nlp
+Candidates should demonstrate NLP text processing in completed projects.,Project responsibility: Built NLP text preprocessing and tokenization pipelines.,1,nlp
+Candidates should demonstrate NLP text processing in completed projects.,"Wrote SQL joins, views and indexes for a reporting database.",0,nlp
+Looking for practical NLP text processing and collaborative engineering.,Experience: Built NLP text preprocessing and tokenization pipelines using documented workflows.,1,nlp
+Looking for practical NLP text processing and collaborative engineering.,Packaged Python web apps in Docker containers.,0,nlp
+Position needs technical knowledge of NLP text processing in real tasks.,Contribution: Built NLP text preprocessing and tokenization pipelines within team deliverables.,1,nlp
+Position needs technical knowledge of NLP text processing in real tasks.,Deployed workloads to AWS S3 and EC2 with IAM permissions.,0,nlp
+Show previous work involving NLP text processing with concrete examples.,Relevant project work: Built NLP text preprocessing and tokenization pipelines during software development.,1,nlp
+Show previous work involving NLP text processing with concrete examples.,Built JavaScript browser features and used async requests.,0,nlp
