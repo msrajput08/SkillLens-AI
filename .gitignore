@@ -17,3 +17,7 @@ app/static/vendor/
 *.age
 *.pem
 *.key
+
+.env.*
+!.env.example
+!.env.production.example
