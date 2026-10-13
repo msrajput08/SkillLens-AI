@@ -31,6 +31,7 @@ function showAccount() {
       el('memberUsage').append(line);
     }
     el('cancelPro').hidden = !(currentUser.billing_status && ['active', 'pending', 'authenticated', 'created', 'halted'].includes(currentUser.billing_status));
+    el('checkBillingStatus').hidden = !currentUser.billing_status;
   }
 }
 async function refreshAccount() {
