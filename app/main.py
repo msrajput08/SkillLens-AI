@@ -137,7 +137,9 @@ async def get_resume(resume_text: str, resume_file: UploadFile | None) -> str:
     if resume_file is not None and resume_file.filename:
         # Browser imports extract text locally; raw server uploads remain disabled
         # by default in every deployed environment, even when ClamAV is present.
-        if os.getenv('SKILLLENS_BACKEND_UPLOADS_ENABLED', 'false').lower() != 'true':
+        enabled = os.getenv('SKILLLENS_BACKEND_UPLOADS_ENABLED',
+                            'false' if PROD else 'true').lower() == 'true'
+        if not enabled:
             raise HTTPException(422, 'Raw file uploads are disabled. Import PDF/DOCX in your browser instead.')
         content = await resume_file.read(MAX_UPLOAD + 1)
         try:
