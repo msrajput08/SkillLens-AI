@@ -232,7 +232,7 @@ def create_cover_letter(data: CoverLetterInput, user = Depends(require_user)):
     """
     import re
     def clean_label(value: str) -> str:
-        return re.sub(r'\\s+', ' ', value).strip()
+        return ' '.join(value.split())
 
     name = clean_label(data.full_name)
     company = clean_label(data.company)
@@ -249,7 +249,7 @@ def create_cover_letter(data: CoverLetterInput, user = Depends(require_user)):
         evidence = ('I am interested in learning more about the responsibilities '
                     'and explaining which parts of my background are most relevant.')
         fit = 'I would welcome an opportunity to discuss my experience in more detail.'
-    draft = '\\n'.join([
+    draft = chr(10).join([
         name,
         '',
         f'Dear {company} Hiring Team,',
