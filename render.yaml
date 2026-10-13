@@ -35,3 +35,11 @@ services:
         sync: false
       - key: RAZORPAY_KEY_SECRET
         sync: false
+      - key: SKILLLENS_PRO_BILLING_ENABLED
+        value: "false"
+      - key: RAZORPAY_PLAN_ID
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: SKILLLENS_PRO_PRICE_INR
+        value: "199"
