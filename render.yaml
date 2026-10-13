@@ -27,3 +27,11 @@ services:
         sync: false
       - key: LEGAL_REVIEWED
         sync: false
+      - key: SKILLLENS_STANDARD_CHECKOUT_ENABLED
+        sync: false
+      - key: SKILLLENS_STANDARD_TEST_AMOUNT_PAISE
+        value: "100"
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
