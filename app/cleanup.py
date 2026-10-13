@@ -1,7 +1,7 @@
 """Run periodically (e.g. once a day) for data retention and credential hygiene."""
 from datetime import timedelta
 from sqlalchemy import delete
-from .saas import Session, SavedReport, SessionToken, OneTimeToken, RateWindow, WebhookEvent, utcnow
+from .saas import Session, SavedReport, SessionToken, OneTimeToken, RateWindow, WebhookEvent, ResumeDraft, utcnow
 
 
 def purge():
@@ -10,6 +10,7 @@ def purge():
     with Session.begin() as db:
         for model, predicate in [
             (SavedReport, SavedReport.expires_at <= now),
+            (ResumeDraft, ResumeDraft.expires_at <= now),
             (SessionToken, SessionToken.expires_at <= now),
             (OneTimeToken, OneTimeToken.expires_at <= now),
             (RateWindow, RateWindow.expires_at <= now - timedelta(days=1)),

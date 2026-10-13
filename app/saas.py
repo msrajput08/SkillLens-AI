@@ -4,6 +4,7 @@ Razorpay subscription webhooks. See SECURITY.md for threat model and deployment 
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import secrets
@@ -35,6 +36,10 @@ AUTH_DAYS = 14
 FREE_LIMITS = {'analyze': 5, 'rewrite': 3}
 PRO_LIMITS = {'analyze': 200, 'rewrite': 100}
 ph = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2)
+# Fixed dummy password hash avoids allocating TWO expensive Argon2 computations
+# for every login attempt against an unknown email. Never generate per request.
+DUMMY_PASSWORD_HASH = '$argon2id$v=19$m=65536,t=3,p=2$Bq80fBSCjjLTStdpth09xA$kUz6r67NTenIvGeJOTyDpqsrheVQk5s3Yoh/ebzl/6g'
+logger = logging.getLogger('skilllens.email')
 
 if PROD:
     required = {'DATABASE_URL': DB_URL if 'DATABASE_URL' in os.environ else '',
@@ -135,6 +140,28 @@ class SavedReport(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime)
 
 
+class Application(Base):
+    """User-private encrypted job tracker item. No plaintext role/company indexing."""
+    __tablename__ = 'applications'
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(40), ForeignKey('users.id', ondelete='CASCADE'), index=True)
+    encrypted_data: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class ResumeDraft(Base):
+    """User-private encrypted resume builder draft. Drafts expire after 90 days."""
+    __tablename__ = 'resume_drafts'
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(40), ForeignKey('users.id', ondelete='CASCADE'), index=True)
+    title: Mapped[str] = mapped_column(String(160))
+    encrypted_text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+
+
 class WebhookEvent(Base):
     __tablename__ = 'webhook_events'
     id: Mapped[str] = mapped_column(String(140), primary_key=True)
@@ -227,7 +254,12 @@ def send_email(to: str, subject: str, body: str):
                 timeout=12.0,
             )
             response.raise_for_status()
-        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+        except httpx.HTTPStatusError as exc:
+            # Never log addresses, API keys, request bodies, or response bodies.
+            logger.warning('Transactional email provider rejected request (HTTP %d).', exc.response.status_code)
+            raise HTTPException(503, 'Email delivery unavailable. Please try again later.') from exc
+        except httpx.RequestError as exc:
+            logger.warning('Transactional email provider network error (%s).', type(exc).__name__)
             raise HTTPException(503, 'Email delivery unavailable. Please try again later.') from exc
         return
     host = os.getenv('SMTP_HOST', '')
@@ -259,6 +291,23 @@ def usage_info(user: User) -> dict:
         records = db.scalars(select(Usage).where(Usage.user_id == user.id, Usage.period == period)).all()
     current = {record.feature: record.used for record in records}
     return {k: {'used': current.get(k, 0), 'limit': v} for k, v in limits.items()}
+
+
+def ensure_quota(user: User, feature: str):
+    """Reject exhausted monthly quotas before expensive NLP/model inference.
+
+    A separate atomic charge after successful work remains the source of truth;
+    two concurrent requests cannot both claim the last credit.
+    """
+    limits = PRO_LIMITS if user.tier == 'pro' else FREE_LIMITS
+    if feature not in limits:
+        raise HTTPException(400, 'Unknown feature')
+    period = utcnow().strftime('%Y-%m')
+    with Session() as db:
+        used = db.scalar(select(Usage.used).where(
+            Usage.user_id == user.id, Usage.period == period, Usage.feature == feature)) or 0
+    if used >= limits[feature]:
+        raise HTTPException(402, f'{feature.title()} monthly limit reached. Upgrade your plan to continue.')
 
 
 def charge(user: User, feature: str):
@@ -339,7 +388,12 @@ def login(data: Credentials, request: Request, response: Response):
         user = db.scalar(select(User).where(User.email == email))
         try:
             if not user:
-                ph.verify(ph.hash('nottherightpassword123'), data.password)  # burn time for unknown accounts
+                # Similar verification work for unknown accounts, without hashing
+                # a fresh dummy secret first (which doubles Argon2 CPU/memory).
+                try:
+                    ph.verify(DUMMY_PASSWORD_HASH, data.password)
+                except argon_error.VerificationError:
+                    pass
                 raise HTTPException(401, 'Incorrect email or password.')
             ph.verify(user.password_hash, data.password)
         except (argon_error.VerifyMismatchError, argon_error.VerificationError):
@@ -448,6 +502,9 @@ def save_report(data: SaveBody, user: User = Depends(require_user)):
     if len(serialized.encode()) > 150000:
         raise HTTPException(413, 'Report too large.')
     with Session.begin() as db:
+        # Serialize save operations for one user on PostgreSQL, preventing the
+        # concurrent-request race around the maximum saved report count.
+        db.execute(select(User.id).where(User.id == user.id).with_for_update()).scalar_one()
         existing = db.scalar(select(func.count()).select_from(SavedReport).where(SavedReport.user_id == user.id,
                                                                                 SavedReport.expires_at > utcnow()))
         if existing >= (100 if user.tier == 'pro' else 5):
@@ -628,8 +685,207 @@ def delete_account(data: DeleteAccount, request: Request, response: Response, us
     if user.provider_subscription_id and user.subscription_status not in (None, 'cancelled', 'completed', 'expired'):
         raise HTTPException(409, 'Cancel your subscription and wait for cancellation confirmation before deleting your account.')
     with Session.begin() as db:
-        for model in (SessionToken, OneTimeToken, Usage, SavedReport):
+        for model in (SessionToken, OneTimeToken, Usage, SavedReport, Application, ResumeDraft):
             db.execute(delete(model).where(model.user_id == user.id))
         db.execute(delete(User).where(User.id == user.id))
     response.delete_cookie(COOKIE_NAME, path='/', secure=PROD, httponly=True, samesite='lax')
     return {'ok': True, 'message': 'Account and saved reports deleted.'}
+
+# Career dashboard: encrypted job-application tracker and editable resume drafts.
+# Account endpoints use the existing auth cookie and CSRF enforcement.
+APPLICATION_STATUSES = {'saved', 'applied', 'assessment', 'interview', 'offer', 'rejected', 'withdrawn'}
+
+
+class ApplicationData(BaseModel):
+    company: str = Field(min_length=1, max_length=120)
+    role: str = Field(min_length=1, max_length=160)
+    status: str = Field(default='saved', max_length=20)
+    location: str = Field(default='', max_length=120)
+    url: str = Field(default='', max_length=1000)
+    notes: str = Field(default='', max_length=4000)
+    next_step: str = Field(default='', max_length=200)
+
+
+def validate_application(data: ApplicationData) -> dict:
+    obj = data.model_dump()
+    for key in ('company', 'role'):
+        obj[key] = obj[key].strip()
+        if not obj[key]:
+            raise HTTPException(422, f'{key} cannot be blank.')
+    if data.status not in APPLICATION_STATUSES:
+        raise HTTPException(422, 'Invalid application status.')
+    if data.url:
+        parsed = urlparse(data.url)
+        if parsed.scheme not in ('https', 'http') or not parsed.hostname or parsed.username or parsed.password:
+            raise HTTPException(422, 'A valid public HTTP(S) job URL is required.')
+    return obj
+
+
+def unpack_application(item: Application) -> dict:
+    try:
+        payload = json.loads(cipher.decrypt(item.encrypted_data.encode()).decode())
+    except (InvalidToken, ValueError):
+        raise HTTPException(503, 'Encrypted application could not be read.')
+    return {'id': item.id, 'created_at': item.created_at.isoformat() + 'Z',
+            'updated_at': item.updated_at.isoformat() + 'Z', **payload}
+
+
+@router.get('/applications')
+def applications(user: User = Depends(require_user)):
+    with Session() as db:
+        entries = db.scalars(select(Application).where(Application.user_id == user.id)
+                             .order_by(Application.updated_at.desc()).limit(501)).all()
+        return [unpack_application(item) for item in entries]
+
+
+@router.post('/applications', status_code=201)
+def create_application(data: ApplicationData, user: User = Depends(require_user)):
+    payload = validate_application(data)
+    with Session.begin() as db:
+        db.execute(select(User.id).where(User.id == user.id).with_for_update()).scalar_one()
+        count = db.scalar(select(func.count()).select_from(Application).where(Application.user_id == user.id))
+        if count >= (500 if user.tier == 'pro' else 25):
+            raise HTTPException(402, 'Application tracker limit reached.')
+        item = Application(id=secrets.token_hex(16), user_id=user.id,
+                           encrypted_data=cipher.encrypt(json.dumps(payload).encode()).decode())
+        db.add(item)
+    return {'id': item.id, **payload}
+
+
+@router.put('/applications/{application_id}')
+def update_application(application_id: str, data: ApplicationData, user: User = Depends(require_user)):
+    payload = validate_application(data)
+    with Session.begin() as db:
+        item = db.get(Application, application_id)
+        if not item or item.user_id != user.id:
+            raise HTTPException(404, 'Application not found.')
+        item.encrypted_data = cipher.encrypt(json.dumps(payload).encode()).decode()
+        item.updated_at = utcnow()
+    return {'id': application_id, **payload}
+
+
+@router.delete('/applications/{application_id}')
+def delete_application(application_id: str, user: User = Depends(require_user)):
+    with Session.begin() as db:
+        result = db.execute(delete(Application).where(Application.id == application_id,
+                                                      Application.user_id == user.id))
+        if not result.rowcount:
+            raise HTTPException(404, 'Application not found.')
+    return {'ok': True}
+
+
+class ResumeDraftBody(BaseModel):
+    title: str = Field(min_length=1, max_length=160)
+    text: str = Field(min_length=100, max_length=55000)
+    fields: dict[str, str] = Field(default_factory=dict)
+
+
+def encrypt_draft(data: ResumeDraftBody) -> str:
+    allowed = {'fullName', 'jobTitle', 'email', 'phone', 'city', 'links',
+               'summary', 'skills', 'experience', 'projects', 'education', 'certifications'}
+    if any(k not in allowed or not isinstance(v, str) for k, v in data.fields.items()) or any(
+            len(value) > 7500 for value in data.fields.values()):
+        raise HTTPException(422, 'Invalid resume fields.')
+    payload = json.dumps({'text': data.text, 'fields': data.fields}, ensure_ascii=False)
+    return cipher.encrypt(payload.encode()).decode()
+
+
+def unpack_draft(item: ResumeDraft, include_text: bool = False) -> dict:
+    base = {'id': item.id, 'title': item.title, 'updated_at': item.updated_at.isoformat() + 'Z',
+            'expires_at': item.expires_at.isoformat() + 'Z'}
+    if include_text:
+        try:
+            decoded = cipher.decrypt(item.encrypted_text.encode()).decode()
+            # Backward-compatible with plaintext-encrypted v2 builder drafts.
+            try:
+                structured = json.loads(decoded)
+                if isinstance(structured, dict) and 'text' in structured and 'fields' in structured:
+                    base['text'] = structured['text']
+                    base['fields'] = structured['fields']
+                else:
+                    base['text'] = decoded
+            except (ValueError, TypeError):
+                base['text'] = decoded
+        except InvalidToken:
+            raise HTTPException(503, 'Encrypted draft could not be read.')
+    return base
+
+
+@router.get('/drafts')
+def list_drafts(user: User = Depends(require_user)):
+    with Session() as db:
+        return [unpack_draft(x) for x in db.scalars(select(ResumeDraft).where(
+            ResumeDraft.user_id == user.id, ResumeDraft.expires_at > utcnow())
+            .order_by(ResumeDraft.updated_at.desc()).limit(100)).all()]
+
+
+@router.post('/drafts', status_code=201)
+def save_draft(data: ResumeDraftBody, user: User = Depends(require_user)):
+    with Session.begin() as db:
+        db.execute(select(User.id).where(User.id == user.id).with_for_update()).scalar_one()
+        count = db.scalar(select(func.count()).select_from(ResumeDraft).where(
+            ResumeDraft.user_id == user.id, ResumeDraft.expires_at > utcnow()))
+        if count >= (50 if user.tier == 'pro' else 5):
+            raise HTTPException(402, 'Saved draft limit reached. Delete an older draft.')
+        item = ResumeDraft(id=secrets.token_hex(16), user_id=user.id, title=data.title.strip(),
+                           encrypted_text=encrypt_draft(data),
+                           expires_at=utcnow() + timedelta(days=90))
+        db.add(item)
+    return unpack_draft(item)
+
+
+@router.get('/drafts/{draft_id}')
+def get_draft(draft_id: str, user: User = Depends(require_user)):
+    with Session() as db:
+        item = db.get(ResumeDraft, draft_id)
+        if not item or item.user_id != user.id or item.expires_at <= utcnow():
+            raise HTTPException(404, 'Draft not found.')
+        return unpack_draft(item, True)
+
+
+@router.put('/drafts/{draft_id}')
+def update_draft(draft_id: str, data: ResumeDraftBody, user: User = Depends(require_user)):
+    with Session.begin() as db:
+        item = db.get(ResumeDraft, draft_id)
+        if not item or item.user_id != user.id or item.expires_at <= utcnow():
+            raise HTTPException(404, 'Draft not found.')
+        item.title = data.title.strip()
+        item.encrypted_text = encrypt_draft(data)
+        item.updated_at = utcnow()
+        item.expires_at = utcnow() + timedelta(days=90)
+    return unpack_draft(item)
+
+
+@router.delete('/drafts/{draft_id}')
+def delete_draft(draft_id: str, user: User = Depends(require_user)):
+    with Session.begin() as db:
+        result = db.execute(delete(ResumeDraft).where(ResumeDraft.id == draft_id,
+                                                     ResumeDraft.user_id == user.id))
+        if not result.rowcount:
+            raise HTTPException(404, 'Draft not found.')
+    return {'ok': True}
+
+
+@router.get('/account/export')
+def export_account(request: Request, user: User = Depends(require_user)):
+    # Sensitive bulk export requires session CSRF even on a read operation.
+    session_auth(request, check_csrf=True)
+    throttle('export:' + user.id, 5, 3600)
+    with Session() as db:
+        apps = [unpack_application(x) for x in db.scalars(select(Application).where(
+            Application.user_id == user.id)).all()]
+        reports = []
+        for item in db.scalars(select(SavedReport).where(SavedReport.user_id == user.id,
+                                                        SavedReport.expires_at > utcnow())).all():
+            try:
+                content = json.loads(cipher.decrypt(item.encrypted_report.encode()).decode())
+            except (InvalidToken, ValueError):
+                raise HTTPException(503, 'Cannot export an encrypted report.')
+            reports.append({'title': item.title, 'created_at': item.created_at.isoformat() + 'Z', 'report': content})
+        drafts = [unpack_draft(x, True) for x in db.scalars(select(ResumeDraft).where(
+            ResumeDraft.user_id == user.id, ResumeDraft.expires_at > utcnow())).all()]
+    from fastapi.responses import JSONResponse
+    return JSONResponse({'exported_at': utcnow().isoformat() + 'Z', 'email': user.email,
+                         'applications': apps, 'reports': reports, 'resume_drafts': drafts},
+                        headers={'Cache-Control': 'no-store', 'Content-Disposition':
+                                 'attachment; filename="skilllens-my-data.json"'})

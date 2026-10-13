@@ -1,3 +1,8 @@
+FROM node:22-alpine AS browserparsers
+WORKDIR /ui
+COPY frontend/package.json frontend/install.mjs ./
+RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund && node install.mjs /ui/vendor
+
 FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /srv/app
@@ -6,6 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt && groupadd -r runner && user
 RUN mkdir -p /srv/data && chown runner:runner /srv/data
 ENV DATABASE_URL=sqlite:////srv/data/skilllens.db SKILLLENS_DEV_KEY_FILE=/srv/data/dev.key
 COPY ./app ./app
+COPY --from=browserparsers /ui/vendor ./app/static/vendor
 COPY ./models ./models
 COPY ./training ./training
 COPY ./migrations ./migrations

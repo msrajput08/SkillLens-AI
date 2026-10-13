@@ -264,3 +264,18 @@ $('draftDocx').addEventListener('click',async()=>{
 });
 
 window.addEventListener('skilllens:report', e => { currentReport=e.detail; renderReport(currentReport); showState('result'); $('workspace').scrollIntoView({behavior:'smooth'}); });
+
+// The resume builder can open an encrypted draft in the analyzer.
+window.addEventListener('load', async () => {
+  const id=new URLSearchParams(location.search).get('draft');
+  if(!id || !/^[a-f0-9]{32}$/.test(id))return;
+  try{
+    const r=await fetch('/api/drafts/'+encodeURIComponent(id),{credentials:'same-origin'});
+    if(!r.ok)throw Error('Sign in to access that saved draft.');
+    const data=await r.json();
+    $('resumeText').value=data.text||'';
+    $('resumeText').dispatchEvent(new Event('input',{bubbles:true}));
+    $('resumeText').focus();
+    history.replaceState({},'',location.pathname);
+  }catch(err){showError(err.message||'Could not open the saved resume draft.');}
+});

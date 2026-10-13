@@ -1,0 +1,38 @@
+name: SkillLens CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit-and-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install app and tests
+        run: python -m pip install -r requirements-dev.txt
+      - name: Syntax check
+        run: python -m compileall -q app tests
+      - name: Full suite
+        env:
+          SKILLLENS_ENV: development
+        run: python -m pytest -q
+
+  docker-release-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build exact deployment Dockerfile
+        run: docker build --progress=plain -t skilllens-v3-ci .
+      - name: Verify browser parsers ship inside image
+        run: |
+          docker run --rm --entrypoint python skilllens-v3-ci -c "from pathlib import Path; p=Path('/srv/app/app/static/vendor'); expected=('pdf.mjs','pdf.worker.mjs','mammoth.browser.min.js'); assert all((p/f).is_file() and (p/f).stat().st_size>0 for f in expected); print('Local PDF/DOCX parser assets present')"
