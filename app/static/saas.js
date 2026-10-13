@@ -141,7 +141,7 @@ const checkBilling = el('checkBillingStatus');
 if(checkBilling) checkBilling.onclick = async () => {
   checkBilling.disabled=true;
   try{
-    const res=await apiFetch('/api/billing/status');
+    const res=await apiFetch('/api/billing/status',{method:'POST'});
     const data=await res.json();
     if(!res.ok)throw Error(data.detail||'Could not check subscription.');
     message(data.message||'Billing status refreshed.');
