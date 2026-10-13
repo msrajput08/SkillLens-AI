@@ -52,7 +52,11 @@ if PROD:
     if not NO_CARD_BETA:
         required.update({k: os.getenv(k, '') for k in (
             'RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_PLAN_ID',
-            'RAZORPAY_WEBHOOK_SECRET', 'SKILLLENS_PRO_PRICE_INR', 'SKILLLENS_CLAMAV_ADDR')})
+            'RAZORPAY_WEBHOOK_SECRET', 'SKILLLENS_PRO_PRICE_INR')})
+        # Raw files are optional: the browser extracts PDF/DOCX text locally.
+        # If upload is explicitly enabled, enforce a real ClamAV scanner at boot.
+        if os.getenv('SKILLLENS_BACKEND_UPLOADS_ENABLED', 'false').lower() == 'true':
+            required['SKILLLENS_CLAMAV_ADDR'] = os.getenv('SKILLLENS_CLAMAV_ADDR', '')
     if not os.getenv('BREVO_API_KEY'):
         required['SMTP_HOST'] = os.getenv('SMTP_HOST', '')
     if NO_CARD_BETA and not os.getenv('BREVO_API_KEY'):
