@@ -657,6 +657,7 @@ async def billing_checkout(user: User = Depends(require_user)):
         else:
             subscription_id = None
     if not subscription_id:
+        throttle('billing:checkout:' + user.id, limit=10, seconds=3600)
         created = await razorpay('POST', 'subscriptions', json={
             'plan_id': plan, 'total_count': 12, 'quantity': 1, 'customer_notify': True,
             'notes': {'skilllens_user_id': user.id}})
@@ -669,7 +670,7 @@ async def billing_checkout(user: User = Depends(require_user)):
             'name': 'SkillLens Pro', 'email': user.email}
 
 
-@router.get('/billing/status')
+@router.post('/billing/status')
 async def billing_status(user: User = Depends(require_user)):
     """Fetch authoritative subscription state; useful when a webhook is delayed."""
     if not user.provider_subscription_id:
