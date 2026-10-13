@@ -43,3 +43,5 @@ services:
         sync: false
       - key: SKILLLENS_PRO_PRICE_INR
         value: "199"
+      - key: SKILLLENS_BACKEND_UPLOADS_ENABLED
+        value: "false"
