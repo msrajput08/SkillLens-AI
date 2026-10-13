@@ -21,6 +21,7 @@ from .legal import router as legal_router
 from .malware import scan_resume
 
 ROOT = Path(__file__).resolve().parent
+app = FastAPI(title='SkillLens — Resume Intelligence', version='3.0.0', docs_url=None if PROD else '/api/docs', redoc_url=None, on_startup=[init_db])
 app.include_router(saas_router)
 app.include_router(legal_router)
 app.mount('/assets', StaticFiles(directory=ROOT / 'static'), name='assets')
@@ -100,6 +101,15 @@ def home():
 
 
 @app.get('/builder')
+def builder():
+    return FileResponse(ROOT / 'static' / 'builder.html')
+
+
+@app.get('/tracker')
+def tracker():
+    return FileResponse(ROOT / 'static' / 'tracker.html')
+
+
 @app.get('/robots.txt')
 def robots():
     from fastapi.responses import PlainTextResponse
@@ -108,11 +118,15 @@ def robots():
 
 @app.get('/api/health')
 def health():
+    return {'ok': True, 'version': '3.0.0'}
 
 
 @app.get('/api/capabilities')
 def capabilities():
     return {'embedding': model_status(), 'custom_model': custom_status(), 'llm': llm_config(),
+            'safe_rewrite': True, 'docx_export': True, 'resumes_persisted': False}
+
+
 
 
 async def get_resume(resume_text: str, resume_file: UploadFile | None) -> str:
