@@ -155,3 +155,79 @@ el('resendVerification').onclick=async()=>{
   const res=await fetch('/api/auth/resend-verification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
   const data=await res.json();message(data.message||data.detail||'Unable to resend verification.');
 };
+
+/* One-time Razorpay Orders API TEST flow; isolated from recurring Pro subscriptions. */
+const testCheckoutSection = el('testCheckoutCard');
+const testCheckoutButton = el('testCheckoutButton');
+const testCheckoutStatus = el('testCheckoutStatus');
+let testOrderAmount = 100;
+function checkoutNotice(value) {
+  if (testCheckoutStatus) testCheckoutStatus.textContent = value;
+}
+fetch('/api/standard-checkout/config',{credentials:'same-origin'})
+  .then(r=>r.json()).then(info=>{
+    if(info.enabled && info.mode === 'test' && !info.grants_pro){
+      testOrderAmount=info.amount;
+      testCheckoutButton.textContent = 'Run ₹' + (testOrderAmount/100).toFixed(2) + ' test checkout';
+      testCheckoutSection.hidden=false;
+    }
+  }).catch(()=>{});
+
+if(testCheckoutButton) testCheckoutButton.onclick = async () => {
+  if(!currentUser) {
+    window.openAccount();
+    checkoutNotice('Sign in to run a sandbox checkout.');
+    return;
+  }
+  testCheckoutButton.disabled=true;
+  checkoutNotice('Creating your secure test order…');
+  try {
+    const response=await apiFetch('/api/create-order',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({amount:testOrderAmount,currency:'INR'}),
+    });
+    const order=await response.json();
+    if(!response.ok)throw Error(order.detail||'Could not create test order.');
+    await loadScript('https://checkout.razorpay.com/v1/checkout.js');
+    let complete=false, verifying=false;
+    const checkout=new Razorpay({
+      key:order.key_id,
+      order_id:order.order_id,
+      amount:order.amount,
+      currency:order.currency,
+      name:'SkillLens AI',
+      description:'Sandbox test only — no Pro access',
+      prefill:{email:order.email},
+      theme:{color:'#16865e'},
+      handler:async result=>{
+        verifying=true;
+        checkoutNotice('Payment returned. Verifying with our server…');
+        try {
+          const checked=await apiFetch('/api/verify-payment',{
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+              razorpay_payment_id:result.razorpay_payment_id,
+              razorpay_order_id:result.razorpay_order_id,
+              razorpay_signature:result.razorpay_signature,
+            })
+          });
+          const verified=await checked.json();
+          if(!checked.ok)throw Error(verified.detail||'Payment verification failed.');
+          if(!verified.verified)throw Error('Payment was not verified.');
+          complete=true;
+          checkoutNotice('Test payment verified! This did not activate Pro or charge real money.');
+        }catch(err){checkoutNotice(err.message||'Could not verify test payment.');}
+        finally{verifying=false;}
+      },
+      modal:{ondismiss:()=>{
+        if(!complete && !verifying)checkoutNotice('Checkout closed. No payment confirmed.');
+      }},
+    });
+    checkout.on('payment.failed',result=>{
+      const reason=result?.error?.description || 'Payment failed; no upgrade granted.';
+      checkoutNotice('Test payment failed: '+reason);
+    });
+    checkout.open();
+  }catch(err){checkoutNotice(err.message||'Checkout is unavailable.');}
+  finally{testCheckoutButton.disabled=false;}
+};

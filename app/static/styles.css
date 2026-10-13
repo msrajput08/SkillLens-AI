@@ -39,3 +39,12 @@
 
 /* v3 career studio entry points and local-file importer */
 .import-dropzone{border:1.5px dashed #a8cdbb;border-radius:12px;background:#f8fcf9;padding:15px;margin-top:12px;color:#387258;font-size:12px;text-align:center}.import-dropzone.dragover{border-color:#078350;background:#e8f8eb}.import-status{font-size:11px;line-height:1.6;color:#496e5b;margin:8px 0}.import-status.error{color:#b03333}.product-tools{padding:20px 0 32px}.tool-card{display:flex;justify-content:space-between;align-items:center;gap:20px;border:1px solid #d5e8dd;border-radius:20px;padding:28px;background:linear-gradient(115deg,#eaf8ee,#fff)}.tool-card h2{font-size:24px;margin:8px 0}.tool-card p{font-size:13px;color:#546c60;max-width:560px;line-height:1.6}.tool-links{display:flex;flex-direction:column;gap:12px}.tool-links a{display:block;white-space:nowrap;border:1px solid #bfd9c8;border-radius:10px;padding:12px 17px;background:#fff;text-decoration:none;color:#246b4a;font-weight:700;font-size:13px}@media(max-width:760px){.tool-card{flex-direction:column;align-items:flex-start;width:100%}.tool-links{width:100%}.tool-links a{white-space:normal}}
+
+/* Explicit test-mode Standard Checkout; never presents a recurring Pro offer. */
+#testCheckoutCard[hidden]{display:none!important}
+.standard-checkout-section{padding:0 0 45px}
+.standard-checkout-card{max-width:880px;margin:auto;padding:25px 28px;border-radius:18px;background:#f1f9f3;border:1px solid #c4e3d0}
+.standard-checkout-card h2{font-size:clamp(1.25rem,3vw,1.8rem);margin:8px 0}
+.standard-checkout-card p{font-size:13px;line-height:1.7;color:#3f6350;max-width:670px}
+.standard-checkout-card button{min-height:46px}
+#testCheckoutStatus{min-height:20px;overflow-wrap:anywhere}

@@ -684,7 +684,9 @@ def delete_account(data: DeleteAccount, request: Request, response: Response, us
         raise HTTPException(403, 'Password incorrect.')
     if user.provider_subscription_id and user.subscription_status not in (None, 'cancelled', 'completed', 'expired'):
         raise HTTPException(409, 'Cancel your subscription and wait for cancellation confirmation before deleting your account.')
+    from .payments import CheckoutOrder
     with Session.begin() as db:
+        db.execute(delete(CheckoutOrder).where(CheckoutOrder.user_id == user.id))
         for model in (SessionToken, OneTimeToken, Usage, SavedReport, Application, ResumeDraft):
             db.execute(delete(model).where(model.user_id == user.id))
         db.execute(delete(User).where(User.id == user.id))

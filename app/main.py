@@ -17,12 +17,14 @@ from .custom_model import assess, status as custom_status, CustomModelUnavailabl
 from .rewriter import ai_rewrite, safe_rewrite, RewriteError, llm_config
 from .exports import draft_docx
 from .saas import router as saas_router, init_db, require_user, charge, ensure_quota, PROD, SITE_URL
+from .payments import router as payments_router
 from .legal import router as legal_router
 from .malware import scan_resume
 
 ROOT = Path(__file__).resolve().parent
 app = FastAPI(title='SkillLens — Resume Intelligence', version='3.0.0', docs_url=None if PROD else '/api/docs', redoc_url=None, on_startup=[init_db])
 app.include_router(saas_router)
+app.include_router(payments_router)
 app.include_router(legal_router)
 app.mount('/assets', StaticFiles(directory=ROOT / 'static'), name='assets')
 
