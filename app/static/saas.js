@@ -120,16 +120,33 @@ el('upgradeButton').onclick = async () => {
     await loadScript('https://checkout.razorpay.com/v1/checkout.js');
     const checkout=new Razorpay({key:data.key,subscription_id:data.subscription_id,name:data.name,
       description:'Monthly SkillLens Pro',prefill:{email:data.email},
-      handler:()=>{message('Payment submitted. Access updates only after secure webhook confirmation.');window.openAccount();},
-      modal:{ondismiss:()=>{}}});
+      handler:()=>{message('Subscription authorization submitted. Check billing status after Razorpay confirms payment.');window.openAccount();},
+      modal:{ondismiss:()=>{message('Checkout closed. No subscription was confirmed.');}}});
+    checkout.on('payment.failed', e=>{message('Payment failed: '+(e?.error?.description||'please retry or use another supported method.'));window.openAccount();});
     checkout.open();
   } catch(err){message(err.message);window.openAccount();}
   finally{btn.disabled=false;}
 };
 el('cancelPro').onclick = async () => {
   if(!confirm('Request your Pro subscription cancellation at the end of this billing cycle?'))return;
-  const res=await apiFetch('/api/billing/cancel',{method:'POST'});
-  const data=await res.json();message(data.message || data.detail || 'Request failed.');
+  try{
+    const res=await apiFetch('/api/billing/cancel',{method:'POST'});
+    const data=await res.json();
+    if(!res.ok)throw Error(data.detail||'Cancellation request failed.');
+    message(data.message||'Cancellation requested.');
+  }catch(err){message(err.message);}
+};
+const checkBilling = el('checkBillingStatus');
+if(checkBilling) checkBilling.onclick = async () => {
+  checkBilling.disabled=true;
+  try{
+    const res=await apiFetch('/api/billing/status');
+    const data=await res.json();
+    if(!res.ok)throw Error(data.detail||'Could not check subscription.');
+    message(data.message||'Billing status refreshed.');
+    await refreshAccount();
+  }catch(err){message(err.message);}
+  finally{checkBilling.disabled=false;}
 };
 async function fromLink(){
   const params=new URLSearchParams(location.search);
@@ -147,7 +164,18 @@ async function fromLink(){
 }
 refreshAccount().then(fromLink).catch(()=>showAccount());
 
-fetch('/api/billing/config').then(r=>r.json()).then(b => { if (b.price) el('proPrice').textContent='₹'+b.price+' / month'; }).catch(()=>{});
+fetch('/api/billing/config').then(r=>r.json()).then(b => {
+  const card=document.querySelector('.plan-card.pro');
+  if(!card) return;
+  card.style.display='block';
+  if(b.enabled && b.price === '199' && b.recurring){
+    el('proPrice').textContent='₹199 / month';
+    el('upgradeButton').hidden=false;
+  }else{
+    el('proPrice').textContent='Coming soon';
+    el('upgradeButton').hidden=true;
+  }
+}).catch(()=>{});
 
 el('resendVerification').onclick=async()=>{
   const email=el('authEmail').value.trim();
