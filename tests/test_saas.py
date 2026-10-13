@@ -171,8 +171,6 @@ def test_upload_scanner_fails_closed(monkeypatch):
 
 def test_razorpay_plan_price_mismatch_is_rejected(monkeypatch):
     import app.saas as saas
-    monkeypatch.setattr(saas, 'PROD', True)
-    monkeypatch.setattr(saas, 'NO_CARD_BETA', False)
     monkeypatch.setenv('SKILLLENS_PRO_BILLING_ENABLED', 'true')
     monkeypatch.setenv('RAZORPAY_KEY_ID', 'rzp_live_mock')
     monkeypatch.setenv('RAZORPAY_KEY_SECRET', 'mock-non-production')
@@ -185,6 +183,8 @@ def test_razorpay_plan_price_mismatch_is_rejected(monkeypatch):
     monkeypatch.setattr(saas,'razorpay',fake_api)
     with TestClient(app) as client:
         _,csrf=signup(client)
+        monkeypatch.setattr(saas, 'PROD', True)
+        monkeypatch.setattr(saas, 'NO_CARD_BETA', False)
         result=client.post('/api/billing/checkout',headers={'X-CSRF-Token':csrf})
         assert result.status_code==503
         assert 'do not match' in result.json()['detail']
