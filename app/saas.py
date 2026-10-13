@@ -560,13 +560,43 @@ async def razorpay(method: str, path: str, **kwargs):
     key, secret = os.getenv('RAZORPAY_KEY_ID', ''), os.getenv('RAZORPAY_KEY_SECRET', '')
     if not key or not secret:
         raise HTTPException(503, 'Billing is not configured.')
-    async with httpx.AsyncClient(timeout=15.0, auth=(key, secret)) as client:
-        try:
+    # Do not log requests, credentials, response descriptions or payment identifiers.
+    billing_log = logging.getLogger('skilllens.billing')
+    operation = path.split('/')[0]
+    try:
+        async with httpx.AsyncClient(timeout=15.0, auth=(key, secret)) as client:
             resp = await client.request(method, 'https://api.razorpay.com/v1/' + path, **kwargs)
             resp.raise_for_status()
             return resp.json()
-        except (httpx.HTTPError, ValueError):
-            raise HTTPException(502, 'Payment provider request failed. Try again later.')
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        code = 'unknown'
+        try:
+            raw = exc.response.json().get('error', {}).get('code', '')
+            if isinstance(raw, str) and re.fullmatch(r'[A-Z_]{2,60}', raw):
+                code = raw
+        except (ValueError, AttributeError, TypeError):
+            pass
+        billing_log.warning('Razorpay %s %s rejected request: HTTP %d (%s)',
+                            method, operation, status, code)
+        if status == 401:
+            # Upstream authentication failure: use 502 to avoid signing out the
+            # logged-in customer (the client handles its own 401 as session loss).
+            raise HTTPException(502, 'Razorpay Test Mode credentials were rejected (upstream 401). Check the matching key ID and secret.') from exc
+        if status == 403:
+            raise HTTPException(502, 'Razorpay account is not permitted to create this order (upstream 403).') from exc
+        if status == 400:
+            raise HTTPException(502, 'Razorpay rejected the order request (upstream 400). Check the account and order configuration.') from exc
+        if status == 429:
+            raise HTTPException(503, 'Razorpay request limit reached. Try again later.') from exc
+        raise HTTPException(502, 'Payment provider request failed. Try again later.') from exc
+    except httpx.RequestError as exc:
+        billing_log.warning('Razorpay %s %s network failure (%s)',
+                            method, operation, type(exc).__name__)
+        raise HTTPException(502, 'Could not connect to Razorpay. Try again later.') from exc
+    except ValueError as exc:
+        billing_log.warning('Razorpay %s %s returned invalid JSON', method, operation)
+        raise HTTPException(502, 'Payment provider returned an invalid response.') from exc
 
 
 @router.post('/billing/checkout')
