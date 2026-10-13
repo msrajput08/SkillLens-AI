@@ -67,4 +67,7 @@ def test_email_provider_error_not_leaking_credentials(monkeypatch,caplog):
 def test_client_txt_import():
     root=Path(__file__).resolve().parents[1]
     assert 'id="importTextFile"' in (root/'app/static/index.html').read_text()
-    assert "new TextDecoder('utf-8', {fatal: true})" in (root/'app/static/app.js').read_text()
+    # v3 moved local TXT/PDF/DOCX decoding out of app.js into importer.js.
+    importer = (root/'app/static/importer.js').read_text()
+    assert "new TextDecoder('utf-8',{fatal:true})" in importer
+    assert 'file.arrayBuffer()' in importer
