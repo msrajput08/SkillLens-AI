@@ -106,6 +106,7 @@ def builder():
 
 
 @app.get('/tracker')
+@app.get('/applications')
 def tracker():
     return FileResponse(ROOT / 'static' / 'tracker.html')
 
