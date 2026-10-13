@@ -1,5 +1,7 @@
 """SkillLens local-first API. All resume data remains in request memory unless user opts into an LLM."""
 from pathlib import Path
+import asyncio
+import logging
 from io import BytesIO
 import os
 
@@ -14,7 +16,7 @@ from .semantic import retrieval, SemanticUnavailable, model_status
 from .custom_model import assess, status as custom_status, CustomModelUnavailable
 from .rewriter import ai_rewrite, safe_rewrite, RewriteError, llm_config
 from .exports import draft_docx
-from .saas import router as saas_router, init_db, require_user, charge, PROD, SITE_URL
+from .saas import router as saas_router, init_db, require_user, charge, ensure_quota, PROD, SITE_URL
 from .legal import router as legal_router
 from .malware import scan_resume
 
@@ -25,17 +27,63 @@ app.include_router(legal_router)
 app.mount('/assets', StaticFiles(directory=ROOT / 'static'), name='assets')
 
 
+@app.on_event('startup')
+async def periodic_retention_startup():
+    # Render Free sleeps when idle; init_db purges on every cold start. While
+    # active, keep purging records daily so a busy instance also honors TTLs.
+    if PROD:
+        async def run_cleanup():
+            from .cleanup import purge
+            while True:
+                await asyncio.sleep(24 * 60 * 60)
+                try:
+                    await asyncio.to_thread(purge)
+                except Exception:
+                    logging.getLogger('skilllens.cleanup').exception('Scheduled retention cleanup failed')
+        app.state.cleanup_task = asyncio.create_task(run_cleanup())
+
+
+@app.on_event('shutdown')
+async def periodic_retention_shutdown():
+    task = getattr(app.state, 'cleanup_task', None)
+    if task is not None:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+
 @app.middleware('http')
 async def security_headers(request, call_next):
     # Explicitly reject cross-origin state changes; webhook signature is checked separately.
+    if request.url.path.startswith('/api/'):
+        # Fast reject declared oversized requests to protect small beta instances.
+        # Endpoint-level parsing and upload limits still apply (including for
+        # transfer-encoded/chunked requests without Content-Length).
+        size_header = request.headers.get('content-length')
+        if size_header is not None:
+            try:
+                size = int(size_header)
+            except ValueError:
+                return JSONResponse(status_code=400, content={'detail': 'Invalid Content-Length.'})
+            limit = 8 * 1024 * 1024 if request.url.path in ('/api/analyze', '/api/rewrite') else 256 * 1024
+            if size < 0 or size > limit:
+                return JSONResponse(status_code=413, content={'detail': 'Request exceeds allowed size.'})
     if request.method not in ('GET', 'HEAD', 'OPTIONS') and request.url.path != '/api/webhooks/razorpay':
         origin = request.headers.get('origin')
         if origin and origin.rstrip('/') != SITE_URL:
             return JSONResponse(status_code=403, content={'detail': 'Cross-origin request blocked.'})
+        if request.headers.get('sec-fetch-site', '').lower() == 'cross-site':
+            return JSONResponse(status_code=403, content={'detail': 'Cross-site request blocked.'})
     response = await call_next(request)
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'no-referrer'
     response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Cross-Origin-Resource-Policy'] = 'same-origin'
+    response.headers['X-Permitted-Cross-Domain-Policies'] = 'none'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; script-src 'self' https://checkout.razorpay.com; style-src 'self'; img-src 'self' data: https://*.razorpay.com; frame-src https://*.razorpay.com; "
         "connect-src 'self' https://*.razorpay.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
@@ -74,6 +122,8 @@ async def get_resume(resume_text: str, resume_file: UploadFile | None) -> str:
     if resume_file is not None and resume_file.filename:
         content = await resume_file.read(MAX_UPLOAD + 1)
         try:
+            if len(content) > MAX_UPLOAD:
+                raise HTTPException(422, 'Resume file must be 6 MB or smaller.')
             scan_resume(content)
             resume = extract_resume(resume_file.filename, content)
         except ResumeParseError as exc:
@@ -105,6 +155,7 @@ async def analyze_endpoint(
     check_jd(job_description, target_role)
     if semantic_mode not in ('classic', 'embeddings'):
         raise HTTPException(422, detail='semantic_mode must be classic or embeddings.')
+    ensure_quota(user, 'analyze')
     resume = await get_resume(resume_text, resume_file)
     semantic = None
     evidence = []
@@ -137,6 +188,7 @@ async def rewrite_endpoint(
     check_jd(job_description, target_role)
     if mode not in ('safe', 'llm'):
         raise HTTPException(422, detail='mode must be safe or llm.')
+    ensure_quota(user, 'rewrite')
     resume = await get_resume(resume_text, resume_file)
     if mode == 'safe':
         result = safe_rewrite(resume, job_description, target_role)

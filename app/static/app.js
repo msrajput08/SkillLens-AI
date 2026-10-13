@@ -56,6 +56,28 @@ function clearAll() {
   switchInput('paste');hideError();showState('empty');
 }
 $('clearButton').addEventListener('click',clearAll);
+// Zero server-side file uploads on the Render free beta. The TXT file's bytes
+// remain inside this tab; only explicitly submitted resume text goes to the API.
+$('importTextButton').addEventListener('click', () => $('importTextFile').click());
+$('importTextFile').addEventListener('change', async event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    if (!/\.txt$/i.test(file.name) || file.size > 256 * 1024) {
+      throw Error('Choose a UTF-8 .txt resume no larger than 256 KB.');
+    }
+    const bytes = await file.arrayBuffer();
+    const content = new TextDecoder('utf-8', {fatal: true}).decode(bytes).replace(/^\uFEFF/, '');
+    if (content.trim().length < 100 || content.length > 55000) {
+      throw Error('Resume text must contain 100–55,000 readable characters.');
+    }
+    $('resumeText').value = content;
+    $('resumeText').dispatchEvent(new Event('input'));
+    switchInput('paste');
+    $('resumeText').focus();
+  } catch (err) { showError(err.message || 'Could not read the TXT file.'); }
+  finally { event.target.value = ''; }
+});
 $('newAnalysis').addEventListener('click',()=>{showState('empty');$('jobDescription').focus();$('workspace').scrollIntoView({behavior:'smooth',block:'start'});});
 form.addEventListener('submit',async (e)=>{
   e.preventDefault();hideError();

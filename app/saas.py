@@ -4,6 +4,7 @@ Razorpay subscription webhooks. See SECURITY.md for threat model and deployment 
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import secrets
@@ -35,6 +36,10 @@ AUTH_DAYS = 14
 FREE_LIMITS = {'analyze': 5, 'rewrite': 3}
 PRO_LIMITS = {'analyze': 200, 'rewrite': 100}
 ph = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2)
+# Fixed dummy password hash avoids allocating TWO expensive Argon2 computations
+# for every login attempt against an unknown email. Never generate per request.
+DUMMY_PASSWORD_HASH = '$argon2id$v=19$m=65536,t=3,p=2$Bq80fBSCjjLTStdpth09xA$kUz6r67NTenIvGeJOTyDpqsrheVQk5s3Yoh/ebzl/6g'
+logger = logging.getLogger('skilllens.email')
 
 if PROD:
     required = {'DATABASE_URL': DB_URL if 'DATABASE_URL' in os.environ else '',
@@ -227,7 +232,12 @@ def send_email(to: str, subject: str, body: str):
                 timeout=12.0,
             )
             response.raise_for_status()
-        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+        except httpx.HTTPStatusError as exc:
+            # Never log addresses, API keys, request bodies, or response bodies.
+            logger.warning('Transactional email provider rejected request (HTTP %d).', exc.response.status_code)
+            raise HTTPException(503, 'Email delivery unavailable. Please try again later.') from exc
+        except httpx.RequestError as exc:
+            logger.warning('Transactional email provider network error (%s).', type(exc).__name__)
             raise HTTPException(503, 'Email delivery unavailable. Please try again later.') from exc
         return
     host = os.getenv('SMTP_HOST', '')
@@ -259,6 +269,23 @@ def usage_info(user: User) -> dict:
         records = db.scalars(select(Usage).where(Usage.user_id == user.id, Usage.period == period)).all()
     current = {record.feature: record.used for record in records}
     return {k: {'used': current.get(k, 0), 'limit': v} for k, v in limits.items()}
+
+
+def ensure_quota(user: User, feature: str):
+    """Reject exhausted monthly quotas before expensive NLP/model inference.
+
+    A separate atomic charge after successful work remains the source of truth;
+    two concurrent requests cannot both claim the last credit.
+    """
+    limits = PRO_LIMITS if user.tier == 'pro' else FREE_LIMITS
+    if feature not in limits:
+        raise HTTPException(400, 'Unknown feature')
+    period = utcnow().strftime('%Y-%m')
+    with Session() as db:
+        used = db.scalar(select(Usage.used).where(
+            Usage.user_id == user.id, Usage.period == period, Usage.feature == feature)) or 0
+    if used >= limits[feature]:
+        raise HTTPException(402, f'{feature.title()} monthly limit reached. Upgrade your plan to continue.')
 
 
 def charge(user: User, feature: str):
@@ -339,7 +366,12 @@ def login(data: Credentials, request: Request, response: Response):
         user = db.scalar(select(User).where(User.email == email))
         try:
             if not user:
-                ph.verify(ph.hash('nottherightpassword123'), data.password)  # burn time for unknown accounts
+                # Similar verification work for unknown accounts, without hashing
+                # a fresh dummy secret first (which doubles Argon2 CPU/memory).
+                try:
+                    ph.verify(DUMMY_PASSWORD_HASH, data.password)
+                except argon_error.VerificationError:
+                    pass
                 raise HTTPException(401, 'Incorrect email or password.')
             ph.verify(user.password_hash, data.password)
         except (argon_error.VerifyMismatchError, argon_error.VerificationError):
@@ -448,6 +480,9 @@ def save_report(data: SaveBody, user: User = Depends(require_user)):
     if len(serialized.encode()) > 150000:
         raise HTTPException(413, 'Report too large.')
     with Session.begin() as db:
+        # Serialize save operations for one user on PostgreSQL, preventing the
+        # concurrent-request race around the maximum saved report count.
+        db.execute(select(User.id).where(User.id == user.id).with_for_update()).scalar_one()
         existing = db.scalar(select(func.count()).select_from(SavedReport).where(SavedReport.user_id == user.id,
                                                                                 SavedReport.expires_at > utcnow()))
         if existing >= (100 if user.tier == 'pro' else 5):
