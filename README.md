@@ -1,10 +1,10 @@
-# SkillLens AI — Commercial SaaS Edition v3
+# SkillLens AI — Public Paid Beta (14 October 2026)
 
-**New in v3:** browser-side PDF/DOCX/TXT import (original files stay in browser), encrypted resume drafts, browser resume builder, deterministic cover-letter template, encrypted application tracker, and user data export. Backend migrations in `migrations/versions/0002_career_workspace.py`. Browser parsers are installed during the Docker build via `frontend/install.mjs`.
+**Live website:** https://skilllens-beta.onrender.com — publicly available on Render Free + Neon Free. **Free:** 5 job-match analyses and 3 rewrites per month. **Pro:** ₹199 INR/month for 200 analyses and 100 rewrites, subject to the in-app subscription terms. The operator reported completing a real subscription payment and observing Pro activation. The live monthly Razorpay plan was also verified by a read-only merchant API check. See [Public launch notes](PUBLIC_LAUNCH.md), [Terms](https://skilllens-beta.onrender.com/terms), and [Privacy](https://skilllens-beta.onrender.com/privacy).
 
-**Deployment status:** Public no-card Render/Neon beta, not independently security-audited or payment-production certified. See [Production readiness gates](PRODUCTION_GATES.md) before accepting paid users.
+**Release scope:** This is an early, limited-capacity **paid beta**, not a guaranteed-uptime service or an independently security-audited release. Render Free can sleep when idle; webhooks/plan activation may be delayed and users should use `Refresh billing status` or contact support if billed access is missing. Legal/tax and merchant obligations, data-restoration exercises, incident response, and long-term reliability remain operator responsibilities. **No fixed-cost hosting upgrade has been purchased.**
 
-**Status: application source + single-server deployment bundle.** This ZIP includes the integrated application, infrastructure configuration, tests and documentation. It is **not yet a live public website or a certified production release**. Real payment transactions, live SMTP delivery, DNS, TLS certificates, backups, legal documents, reliability and penetration testing require operator credentials and a real deployment environment. No API keys, merchant accounts, domains, or hosted model weights are included.
+**New in v3:** browser-side PDF/DOCX/TXT import (original files stay in browser), encrypted resume drafts, browser resume builder, deterministic cover-letter template, encrypted application tracker, and user data export. Backend migrations are in `migrations/versions/0002_career_workspace.py`. Browser parsers are installed during the Docker build via `frontend/install.mjs`.
 
 ## Features actually implemented
 
@@ -45,7 +45,7 @@ docker compose up --build
 
 This exposes **127.0.0.1:8000 only** and stores the development database and key in a Docker volume. No real checkout is enabled until merchant secrets are provided. On a public site without provider setup, users cannot purchase Pro.
 
-## B. Real commercial deployment — required tasks
+## B. Alternative self-hosted deployment — additional requirements
 
 1. **Domain, server and business:** Buy a domain and a VPS with enough memory for Python, PostgreSQL and ClamAV (typically several GB RAM), set DNS `A/AAAA` records to server IP, open ports **80/443**, and configure server firewall/updates. Operator must supply real company/proprietor name, location/contact address, support process and legally reviewed terms/refund/privacy notices. Current `/privacy` and `/terms` are **starter templates, not finalized legal policies**.
 2. **Merchant:** Onboard with **Razorpay**, enable Subscriptions, create a **monthly INR plan**, obtain plan ID, live API key ID/secret and webhook signing secret. Configure webhook to **`https://YOUR_DOMAIN/api/webhooks/razorpay`** for subscription events (activated, charged, paused, pending, halted, cancelled, completed, updated as supported). This site only upgrades from a server-retrieved active subscription matching your configured plan; **a browser success callback never grants Pro access**. Set the exact advertised monthly price in `.env.production`. The checkout endpoint validates the configured monthly INR plan price against Razorpay before creating subscriptions. Test actual flows in Razorpay TEST MODE first; never send test accounts live charges.
@@ -95,4 +95,4 @@ python -m app.cleanup                # remove expired local saved reports
 - Refund workflows, invoices/GST calculations, chargeback handling and support staff dashboard are external merchant/operator responsibilities in this edition, and **are not fully implemented**. Do not advertise compliance/certification or guaranteed hiring outcomes.
 - For pricing, use the actual merchant recurring price; no amount has been invented in this source package.
 
-**Production configuration checklist:** see `LAUNCH_CHECKLIST.md`. Legal review and live credentials are deployment blockers, not code placeholders to ignore.
+**Further production-hardening checklist:** see `LAUNCH_CHECKLIST.md` and `PRODUCTION_GATES.md`. Operator legal/tax review, incident response, monitoring and restoration drills remain important for the live paid beta.
