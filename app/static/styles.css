@@ -48,3 +48,21 @@
 .standard-checkout-card p{font-size:13px;line-height:1.7;color:#3f6350;max-width:670px}
 .standard-checkout-card button{min-height:46px}
 #testCheckoutStatus{min-height:20px;overflow-wrap:anywhere}
+
+/* SEO content hub: accessible, prominent guides with working links */
+.brand-ai{font-size:10px;font-weight:850;margin-left:7px;vertical-align:middle;letter-spacing:.5px;color:#247b53;border:1px solid #d2e8d6;background:#edf7ef;border-radius:5px;padding:3px 5px}
+.seo-hub{padding:30px 0 75px}
+.seo-hub-head{display:flex;justify-content:space-between;align-items:end;gap:36px;margin-bottom:23px}
+.seo-hub-head h2{font-size:clamp(23px,3vw,33px);letter-spacing:-1px;max-width:590px;margin:9px 0 0;line-height:1.22}
+.seo-hub-head p{max-width:420px;margin:0;color:#658173;font-size:13px;line-height:1.75}
+.seo-hub-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:17px}
+.seo-hub-card{display:block;background:#fff;border:1px solid #d8e7dc;border-radius:17px;padding:27px 25px;text-decoration:none;color:#18392c;box-shadow:0 11px 36px #123d2410;transition:transform .16s ease,border-color .16s}
+.seo-hub-card:hover{transform:translateY(-3px);border-color:#83bd98}
+.seo-hub-card:focus-visible{outline:3px solid #31a473;outline-offset:4px}
+.seo-hub-icon{display:grid;place-items:center;width:43px;height:43px;color:#177652;background:#eaf6ed;border-radius:13px;font-size:21px;margin-bottom:21px}
+.seo-hub-label{font-size:10px;font-weight:850;letter-spacing:1.2px;color:#2a9866}
+.seo-hub-card h3{font-size:20px;line-height:1.3;letter-spacing:-.6px;margin:11px 0}
+.seo-hub-card p{font-size:13px;line-height:1.7;color:#688174;min-height:70px;margin:0 0 17px}
+.seo-hub-link{font-size:13px;font-weight:750;color:#177451}
+@media(max-width:900px){.seo-hub-head{display:block}.seo-hub-head p{margin-top:13px;max-width:690px}.seo-hub-grid{grid-template-columns:1fr}.seo-hub-card p{min-height:0}}
+@media(max-width:600px){.seo-hub{padding:22px 0 55px}.seo-hub-card{padding:22px}.footer .legal-links{flex-wrap:wrap}}
