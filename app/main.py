@@ -146,6 +146,21 @@ def tracker():
     return FileResponse(ROOT / 'static' / 'tracker.html')
 
 
+@app.get('/resume-job-match', include_in_schema=False)
+def resume_job_match_page():
+    return FileResponse(ROOT / 'static' / 'resume-job-match.html')
+
+
+@app.get('/guides/how-to-tailor-resume', include_in_schema=False)
+def tailor_resume_guide():
+    return FileResponse(ROOT / 'static' / 'how-to-tailor-resume.html')
+
+
+@app.get('/guides/resume-skills-gap', include_in_schema=False)
+def resume_skills_gap_guide():
+    return FileResponse(ROOT / 'static' / 'resume-skills-gap.html')
+
+
 @app.get('/robots.txt', include_in_schema=False)
 def robots():
     from fastapi.responses import PlainTextResponse
@@ -163,7 +178,7 @@ def sitemap():
     """Canonical public pages only. Private API/account URLs must not be indexed."""
     from fastapi.responses import Response
     from xml.sax.saxutils import escape as xml_escape
-    paths = ('/', '/builder', '/applications', '/privacy', '/terms')
+    paths = ('/', '/resume-job-match', '/guides/how-to-tailor-resume', '/guides/resume-skills-gap', '/builder', '/applications', '/privacy', '/terms')
     urls = ''.join(
         '<url><loc>' + xml_escape(SITE_URL + p) + '</loc></url>'
         for p in paths
