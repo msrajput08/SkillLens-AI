@@ -121,7 +121,7 @@ el('upgradeButton').onclick = async () => {
     await loadScript('https://checkout.razorpay.com/v1/checkout.js');
     const checkout=new Razorpay({key:data.key,subscription_id:data.subscription_id,name:data.name,
       description:'Monthly SkillLens Pro',prefill:{email:data.email},
-      handler:()=>{message('Subscription authorization submitted. Check billing status after Razorpay confirms payment.');window.openAccount();},
+      handler:()=>{message('Authorization submitted. Use Refresh billing status to verify the paid period.');window.openAccount();refreshAccount().catch(()=>{});},
       modal:{ondismiss:()=>{message('Checkout closed. No subscription was confirmed.');}}});
     checkout.on('payment.failed', e=>{message('Payment failed: '+(e?.error?.description||'please retry or use another supported method.'));window.openAccount();});
     checkout.open();
