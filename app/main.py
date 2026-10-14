@@ -50,6 +50,7 @@ async def periodic_retention_startup():
                 from .saas import razorpay
                 from fastapi import HTTPException as ProviderError
                 log = logging.getLogger('skilllens.billing.preflight')
+                log.warning('Live billing preflight: starting read-only check')
                 if not (os.getenv('RAZORPAY_KEY_ID', '').startswith('rzp_live_')
                         and os.getenv('RAZORPAY_KEY_SECRET', '')
                         and os.getenv('RAZORPAY_WEBHOOK_SECRET', '')
@@ -71,7 +72,7 @@ async def periodic_retention_startup():
                            and plan.get('period') == 'monthly'
                            and plan.get('interval') == 1)
                 if matched:
-                    log.info('Live billing preflight: VERIFIED plan=INR199 monthly (read-only)')
+                    log.warning('Live billing preflight: VERIFIED plan=INR199 monthly (read-only)')
                 else:
                     log.warning('Live billing preflight: FAILED (plan amount/currency/interval mismatch)')
             app.state.billing_preflight_task = asyncio.create_task(check_gateway_plan())
