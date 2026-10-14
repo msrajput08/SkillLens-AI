@@ -121,7 +121,27 @@ el('upgradeButton').onclick = async () => {
     await loadScript('https://checkout.razorpay.com/v1/checkout.js');
     const checkout=new Razorpay({key:data.key,subscription_id:data.subscription_id,name:data.name,
       description:'Monthly SkillLens Pro',prefill:{email:data.email},
-      handler:()=>{message('Authorization submitted. Use Refresh billing status to verify the paid period.');window.openAccount();refreshAccount().catch(()=>{});},
+      handler: async result=>{
+         window.openAccount();
+         message('Checking subscription authorization with Razorpay…');
+         try {
+           const confirmed=await apiFetch('/api/billing/confirm',{
+             method:'POST',headers:{'Content-Type':'application/json'},
+             body:JSON.stringify({
+               razorpay_payment_id:result.razorpay_payment_id,
+               razorpay_subscription_id:result.razorpay_subscription_id,
+               razorpay_signature:result.razorpay_signature
+             })
+           });
+           const state=await confirmed.json();
+           if(!confirmed.ok)throw Error(state.detail||'Checkout verification unavailable.');
+           await refreshAccount();
+           message(state.message||'Authorization received. Refresh billing status for paid access.');
+         }catch(error){
+           await refreshAccount().catch(()=>{});
+           message('Payment confirmation pending: '+error.message+' Use Refresh billing status or contact support.');
+         }
+       },
       modal:{ondismiss:()=>{message('Checkout closed. No subscription was confirmed.');}}});
     checkout.on('payment.failed', e=>{message('Payment failed: '+(e?.error?.description||'please retry or use another supported method.'));window.openAccount();});
     checkout.open();

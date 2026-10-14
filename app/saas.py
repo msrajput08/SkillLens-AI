@@ -674,6 +674,47 @@ async def billing_checkout(user: User = Depends(require_user)):
             'name': 'SkillLens Pro', 'email': user.email}
 
 
+class SubscriptionConfirmation(BaseModel):
+    razorpay_payment_id: str = Field(pattern=r'^pay_[A-Za-z0-9]+$', max_length=100)
+    razorpay_subscription_id: str = Field(pattern=r'^sub_[A-Za-z0-9]+$', max_length=100)
+    razorpay_signature: str = Field(pattern=r'^[A-Fa-f0-9]{64}$')
+
+
+@router.post('/billing/confirm')
+async def confirm_subscription_payment(data: SubscriptionConfirmation, user: User = Depends(require_user)):
+    """Verify the Checkout HMAC against this account's server-owned subscription id.
+
+    Checkout authorization alone never grants Pro without a verified paid cycle.
+    """
+    subscription_id = user.provider_subscription_id
+    if not subscription_id or data.razorpay_subscription_id != subscription_id:
+        raise HTTPException(400, 'Subscription does not match this account.')
+    throttle('billing:confirm:' + user.id, limit=12, seconds=3600)
+    secret = os.getenv('RAZORPAY_KEY_SECRET', '')
+    if not secret:
+        raise HTTPException(503, 'Payment provider is not configured.')
+    signed = (data.razorpay_payment_id + '|' + subscription_id).encode()
+    expected = hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, data.razorpay_signature.lower()):
+        raise HTTPException(400, 'Checkout signature verification failed.')
+    current = await razorpay('GET', f'subscriptions/{subscription_id}')
+    if current.get('id') != subscription_id:
+        raise HTTPException(502, 'Payment provider returned a mismatched subscription.')
+    is_paid = verified_paid_subscription(current)
+    with Session.begin() as db:
+        account = db.get(User, user.id)
+        if account.provider_subscription_id != subscription_id:
+            raise HTTPException(409, 'Account subscription changed. Refresh billing status.')
+        account.subscription_status = current.get('status')
+        account.tier = 'pro' if is_paid else 'free'
+    return {
+        'verified': True, 'tier': 'pro' if is_paid else 'free',
+        'status': current.get('status'),
+        'message': 'Pro is active. Paid cycle confirmed.' if is_paid
+                   else 'Authorization verified. Waiting for the paid cycle to be confirmed.'
+    }
+
+
 @router.post('/billing/status')
 async def billing_status(user: User = Depends(require_user)):
     """Fetch authoritative subscription state; useful when a webhook is delayed."""
