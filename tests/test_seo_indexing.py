@@ -43,7 +43,7 @@ def test_seo_titles_canonicals_and_valid_homepage_structured_data():
             assert 'name="description"' in page.text
             assert 'name="robots"' in page.text
         homepage = c.get('/').text
-        match = re.search(r'<script type="application/ld\\+json">(.*?)</script>', homepage, re.S)
+        match = re.search(r'<script type="application/ld\+json">(.*?)</script>', homepage, re.S)
         assert match
         schema = json.loads(match.group(1))
         app_schema = next(v for v in schema['@graph'] if v['@type']=='WebApplication')
