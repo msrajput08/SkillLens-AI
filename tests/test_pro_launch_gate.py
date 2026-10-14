@@ -68,6 +68,7 @@ def test_plan_display_does_not_show_test_checkout_as_paid_pro():
     js=(root/'app/static/saas.js').read_text()
     assert "if(b.enabled && b.price === '199' && b.recurring)" in js
     assert "el('upgradeButton').hidden=true" in js
-    assert "window.openAccount();refreshAccount().catch(()=>{})" in js
+    assert "await refreshAccount()" in js
+    assert "/api/billing/confirm" in js
     assert "/api/billing/status',{method:'POST'}" in js
     assert "grants_pro" in (root/'app/static/index.html').read_text() or 'Test Mode' in (root/'app/static/index.html').read_text()
