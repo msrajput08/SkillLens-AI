@@ -146,10 +146,44 @@ def tracker():
     return FileResponse(ROOT / 'static' / 'tracker.html')
 
 
-@app.get('/robots.txt')
+@app.get('/robots.txt', include_in_schema=False)
 def robots():
     from fastapi.responses import PlainTextResponse
-    return PlainTextResponse('User-agent: *\nAllow: /\nDisallow: /api/\n')
+    return PlainTextResponse(
+        'User-agent: *\n'
+        'Allow: /\n'
+        'Disallow: /api/\n'
+        'Sitemap: ' + SITE_URL + '/sitemap.xml\n',
+        media_type='text/plain',
+    )
+
+
+@app.get('/sitemap.xml', include_in_schema=False)
+def sitemap():
+    """Canonical public pages only. Private API/account URLs must not be indexed."""
+    from fastapi.responses import Response
+    from xml.sax.saxutils import escape as xml_escape
+    paths = ('/', '/builder', '/applications', '/privacy', '/terms')
+    urls = ''.join(
+        '<url><loc>' + xml_escape(SITE_URL + p) + '</loc></url>'
+        for p in paths
+    )
+    xml = '<?xml version="1.0" encoding="UTF-8"?>' + (
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        + urls + '</urlset>'
+    )
+    return Response(xml, media_type='application/xml')
+
+
+@app.get('/google{verification_id}.html', include_in_schema=False)
+def google_search_console_verify(verification_id: str):
+    """Opt-in Search Console HTML-file ownership check, no secret in GitHub."""
+    from fastapi.responses import PlainTextResponse
+    expected = os.getenv('GOOGLE_SITE_VERIFICATION_FILE', '').strip()
+    filename = 'google' + verification_id + '.html'
+    if not expected or not filename == expected:
+        raise HTTPException(status_code=404, detail='Not found.')
+    return PlainTextResponse('google-site-verification: ' + filename)
 
 
 @app.get('/api/health')
