@@ -43,6 +43,38 @@ async def periodic_retention_startup():
                 except Exception:
                     logging.getLogger('skilllens.cleanup').exception('Scheduled retention cleanup failed')
         app.state.cleanup_task = asyncio.create_task(run_cleanup())
+        # One-off read-only Razorpay gateway/plan preflight, enabled only by the
+        # operator. It never creates subscriptions or charges customers.
+        if os.getenv('SKILLLENS_BILLING_PREFLIGHT', '').lower() == 'true':
+            async def check_gateway_plan():
+                from .saas import razorpay
+                from fastapi import HTTPException as ProviderError
+                log = logging.getLogger('skilllens.billing.preflight')
+                if not (os.getenv('RAZORPAY_KEY_ID', '').startswith('rzp_live_')
+                        and os.getenv('RAZORPAY_KEY_SECRET', '')
+                        and os.getenv('RAZORPAY_WEBHOOK_SECRET', '')
+                        and os.getenv('RAZORPAY_PLAN_ID', '')
+                        and os.getenv('SKILLLENS_PRO_PRICE_INR', '') == '199'):
+                    log.warning('Live billing preflight: blocked (incomplete live configuration)')
+                    return
+                try:
+                    plan = await razorpay('GET', 'plans/' + os.environ['RAZORPAY_PLAN_ID'])
+                except ProviderError as exc:
+                    log.warning('Live billing preflight: provider_check_failed HTTP %s', exc.status_code)
+                    return
+                except (ValueError, KeyError, TypeError):
+                    log.warning('Live billing preflight: malformed_provider_response')
+                    return
+                item = plan.get('item') or {}
+                matched = (item.get('amount') == 19900
+                           and item.get('currency') == 'INR'
+                           and plan.get('period') == 'monthly'
+                           and plan.get('interval') == 1)
+                if matched:
+                    log.info('Live billing preflight: VERIFIED plan=INR199 monthly (read-only)')
+                else:
+                    log.warning('Live billing preflight: FAILED (plan amount/currency/interval mismatch)')
+            app.state.billing_preflight_task = asyncio.create_task(check_gateway_plan())
 
 
 @app.on_event('shutdown')
