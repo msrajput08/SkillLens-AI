@@ -24,13 +24,15 @@ def test_sitemap_and_robots_have_public_canonical_urls():
 
 
 def test_seo_titles_canonicals_and_valid_homepage_structured_data():
+    import os
+    live_url = os.getenv('SKILLLENS_SITE_URL', 'https://skilllens-beta.onrender.com').rstrip('/')
     expected = {
         '/': ('SkillLens AI', 'https://skilllens-beta.onrender.com/'),
         '/builder': ('Resume Builder', 'https://skilllens-beta.onrender.com/builder'),
         '/applications': ('Application Tracker', 'https://skilllens-beta.onrender.com/applications'),
         '/tracker': ('Application Tracker', 'https://skilllens-beta.onrender.com/applications'),
-        '/terms': ('Terms of service', SITE_URL + '/terms'),
-        '/privacy': ('Privacy policy', SITE_URL + '/privacy'),
+        '/terms': ('Terms of service', live_url + '/terms'),
+        '/privacy': ('Privacy policy', live_url + '/privacy'),
     }
     with TestClient(app) as c:
         for path, (title, canonical) in expected.items():
