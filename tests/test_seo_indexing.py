@@ -19,7 +19,7 @@ def test_sitemap_and_robots_have_public_canonical_urls():
         parsed = ET.fromstring(xml.text)
         namespace = {'s': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
         urls = [node.text for node in parsed.findall('s:url/s:loc', namespace)]
-        assert urls == [SITE_URL + p for p in ('/', '/builder', '/applications', '/privacy', '/terms')]
+        assert urls == [SITE_URL + p for p in ('/', '/resume-job-match', '/guides/how-to-tailor-resume', '/guides/resume-skills-gap', '/builder', '/applications', '/privacy', '/terms')]
         assert not any('/api/' in url or '/tracker' in url for url in urls)
 
 
@@ -59,3 +59,54 @@ def test_google_search_console_html_verification_is_exact_opt_in(monkeypatch):
         monkeypatch.setenv('GOOGLE_SITE_VERIFICATION_FILE', filename)
         assert c.get('/' + filename).text == 'google-site-verification: ' + filename
         assert c.get('/googlewrong.html').status_code == 404
+
+
+def test_original_seo_landing_pages_are_crawlable_and_links_work():
+    from html.parser import HTMLParser
+    from urllib.parse import urlsplit
+    class Parser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.links = []
+            self.h1 = 0
+            self.h2 = 0
+        def handle_starttag(self, tag, attrs):
+            d = dict(attrs)
+            if tag == 'a' and d.get('href', '').startswith('/'):
+                self.links.append(d['href'])
+            if tag == 'h1':
+                self.h1 += 1
+            if tag == 'h2':
+                self.h2 += 1
+    paths = {
+        '/resume-job-match': ('Resume and Job Description Matcher', 'Match your resume'),
+        '/guides/how-to-tailor-resume': ('How to Tailor a Resume', 'How to tailor'),
+        '/guides/resume-skills-gap': ('How to Find Missing Skills', 'Find the skills'),
+    }
+    with TestClient(app) as client:
+        for url, (title, h1_text) in paths.items():
+            response = client.get(url)
+            assert response.status_code == 200
+            html = response.text
+            assert title in html
+            assert h1_text in html
+            assert '<link rel="canonical" href="https://skilllens-beta.onrender.com' + url + '"' in html
+            assert '<meta name="description"' in html
+            assert 'name="robots" content="index,follow' in html
+            assert '/assets/seo.css' in html
+            assert 'not employer ATS scores' in html
+            parser = Parser()
+            parser.feed(html)
+            assert parser.h1 == 1
+            assert parser.h2 >= 4
+            assert '/#workspace' in parser.links
+            assert '/builder' in parser.links
+            for href in parser.links:
+                path = urlsplit(href).path
+                if path != '/':
+                    assert client.get(path).status_code == 200, href
+        home = client.get('/').text
+        assert 'SKILLLENS AI' in home
+        for url in paths:
+            assert f'href="{url}"' in home
+        assert client.get('/assets/seo.css').status_code == 200
