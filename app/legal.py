@@ -13,7 +13,14 @@ def page(title, content):
     address = html.escape(os.getenv('LEGAL_POSTAL_ADDRESS', '[Postal address required]'))
     updated = html.escape(os.getenv('LEGAL_UPDATED', '13 October 2026'))
     advisory = '' if os.getenv('LEGAL_REVIEWED') == 'yes' else '<hr><p>This policy template must be reviewed and customized for your business and applicable laws before accepting paying customers.</p>'
-    return HTMLResponse('''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'''+html.escape(title)+''' — SkillLens</title><link rel="stylesheet" href="/assets/styles.css"></head><body><main class="shell" style="max-width:850px;padding:45px 15px;line-height:1.8"><p><a href="/">← Back to SkillLens</a></p><h1>'''+html.escape(title)+'''</h1><p>Last updated: '''+updated+'''</p><p><strong>Service operator:</strong> '''+operator+''' · <strong>Contact:</strong> '''+email+''' · <strong>Address:</strong> '''+address+'''</p>'''+content+advisory+'''</main></body></html>''')
+    site_url = os.getenv('SKILLLENS_SITE_URL', 'https://skilllens-beta.onrender.com').rstrip('/')
+    slug = '/privacy' if title == 'Privacy policy' else '/terms'
+    canonical = html.escape(site_url + slug, quote=True)
+    description = ('How SkillLens AI handles resumes, personal information, stored reports, payments and account data.'
+                   if title == 'Privacy policy' else
+                   'Review SkillLens AI pricing, recurring Pro subscriptions, cancellation, refunds and service terms.')
+    meta_description = html.escape(description, quote=True)
+    return HTMLResponse('''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'''+html.escape(title)+''' — SkillLens AI</title><meta name="description" content="'''+meta_description+'''"><meta name="robots" content="index,follow"><link rel="canonical" href="'''+canonical+'''"><link rel="stylesheet" href="/assets/styles.css"></head><body><main class="shell" style="max-width:850px;padding:45px 15px;line-height:1.8"><p><a href="/">← Back to SkillLens</a></p><h1>'''+html.escape(title)+'''</h1><p>Last updated: '''+updated+'''</p><p><strong>Service operator:</strong> '''+operator+''' · <strong>Contact:</strong> '''+email+''' · <strong>Address:</strong> '''+address+'''</p>'''+content+advisory+'''</main></body></html>''')
 
 
 @router.get('/privacy', include_in_schema=False)
