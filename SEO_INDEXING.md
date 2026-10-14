@@ -7,9 +7,9 @@
 ## Implemented in the app
 
 - `/robots.txt` permits public pages, disallows private `/api/` endpoints and links to `/sitemap.xml`.
-- `/sitemap.xml` lists the real public URLs: homepage, resume builder, job application tracker, terms, and privacy.
+- `/sitemap.xml` lists eight real public URLs: homepage, resume and job description matcher, two original evidence-first career guides, resume builder, job application tracker, terms, and privacy.
 - Each public page has a descriptive search title, a unique meta description and a **canonical** URL. The legacy `/tracker` route has canonical `/applications` to avoid a duplicate listing.
-- The homepage includes relevant descriptive content, Open Graph/Twitter metadata, and valid Schema.org `WebSite` / `WebApplication` JSON-LD without fabricated reviews.
+- The homepage includes relevant descriptive content, Open Graph/Twitter metadata, and valid Schema.org `WebSite` / `WebApplication` JSON-LD without fabricated reviews. Three linked education/landing pages supply factual step-by-step advice and real application pathways.
 - Google Search Console ownership verification can be done without a custom domain or a credit card.
 
 ## Operator action: Google Search Console verification
@@ -47,3 +47,21 @@
 
 - Currently the app runs on Render Free; inactive instances can sleep and delay Googlebot access. Keep a working public HTTPS address and consider real operational reliability before expecting stable crawling at scale.
 - If a custom domain is later adopted, set `SKILLLENS_SITE_URL`, update page canonical metadata and redirects consistently, and add the new domain as a new Search Console property; otherwise duplicate domains may compete.
+
+## Organic SEO content release — 14 October 2026
+
+Three distinct crawlable pages were added to serve specific user intents, each with original practical examples, a unique title/description, one H1, accessible navigation, WebPage/BreadcrumbList structured data, a self canonical tag and an actual call-to-action into the free analyzer:
+
+1. `https://skilllens-beta.onrender.com/resume-job-match` — compare a resume against a job description, interpret skill evidence and avoid overclaiming scores.
+2. `https://skilllens-beta.onrender.com/guides/how-to-tailor-resume` — method to tailor a resume without inventing achievements.
+3. `https://skilllens-beta.onrender.com/guides/resume-skills-gap` — separate missing written evidence from genuine skills to learn.
+
+They are cross-linked from the homepage, the resume builder and the application tracker. Before this content release, Google Search Console confirmed that the **homepage** was indexed; the new pages cannot be described as indexed until they appear as such in URL Inspection.
+
+### Weekly monitoring
+
+The operator has enabled a Monday-morning, India-local weekly Search Console recap covering Google index status, search clicks/impressions/CTR/ranking, emerging queries, and recommended next actions. Google reports normally lag and new keywords may not yet have impressions.
+
+### Next editorial opportunities
+
+Add genuinely helpful worked examples and privacy-safe screenshots when available. Improve page-specific explanations based on queries with impressions, not guesses. Share the exact guide links where they help readers. Avoid doorway pages, mass-produced generic filler, bought backlinks, or false claims about ATS scoring.
