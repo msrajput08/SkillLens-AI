@@ -66,3 +66,58 @@
 .seo-hub-link{font-size:13px;font-weight:750;color:#177451}
 @media(max-width:900px){.seo-hub-head{display:block}.seo-hub-head p{margin-top:13px;max-width:690px}.seo-hub-grid{grid-template-columns:1fr}.seo-hub-card p{min-height:0}}
 @media(max-width:600px){.seo-hub{padding:22px 0 55px}.seo-hub-card{padding:22px}.footer .legal-links{flex-wrap:wrap}}
+
+
+/* Mobile layout hardening: keep all navigation reachable without page-wide scrolling. */
+.mobile-menu{display:none}
+@media(max-width:850px){
+  .topbar .nav{gap:12px}
+  .workspace-grid,.workspace-grid>*{min-width:0}
+}
+@media(max-width:700px){
+  .topbar .nav{min-height:64px;height:auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 0}
+  .topbar .brand{flex:0 1 auto;min-width:0;font-size:20px;letter-spacing:-.8px}
+  .topbar .brand>span:last-child{white-space:nowrap}
+  .topbar .mark{flex-shrink:0;width:34px;height:34px}
+  .topbar .toplinks{display:none}
+  .topbar .account-link{margin-left:auto;flex:0 1 auto;max-width:min(41vw,160px);min-height:42px;padding:9px 12px}
+  .mobile-menu{display:block;flex:1 0 100%;min-width:0}
+  .mobile-menu summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:42px;padding:9px 13px;background:#eef7ef;border:1px solid #d7e7d9;border-radius:10px;color:#22684b;font-size:12px;font-weight:800;cursor:pointer}
+  .mobile-menu summary::-webkit-details-marker{display:none}
+  .mobile-menu summary span{font-size:18px;line-height:1;transition:transform .2s}
+  .mobile-menu[open] summary span{transform:rotate(180deg)}
+  .mobile-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px 0 4px}
+  .mobile-links a{display:flex;align-items:center;min-height:44px;min-width:0;padding:10px 12px;border:1px solid #e1ebe1;border-radius:10px;background:#fff;color:#30664c;font-size:12px;font-weight:750;line-height:1.35;text-decoration:none;overflow-wrap:anywhere}
+  .mobile-links a:hover,.mobile-links a:focus-visible{border-color:#7bb89a;background:#f3faf3}
+  .hero{padding:34px 0 30px}
+  .hero h1{font-size:clamp(29px,8.4vw,38px);line-height:1.18;letter-spacing:-1.5px}
+  .workspace-header{display:block}
+  .under-actions,.report-actions{flex-wrap:wrap;align-items:stretch;gap:10px}
+  .under-actions>*,.report-actions>button{flex:1 1 135px;min-width:0;min-height:42px;white-space:normal;text-align:center}
+  .advanced-title,.field-top{flex-wrap:wrap}
+  .result-heading{gap:10px}
+  .result-heading>div{min-width:0}
+  .result-heading h3,.score-copy,.saved-entry{overflow-wrap:anywhere}
+  .score-copy,.score-area>*{min-width:0}
+  .plan-card,.tool-card,.commercial-grid>*{min-width:0}
+  .plan-card p{min-height:0}
+  .commercial-section{padding:38px 0}
+  .account-backdrop{padding:10px}
+  .account-dialog{width:100%;max-width:560px;max-height:calc(100dvh - 20px);border-radius:17px;padding:20px}
+  .saved-entry{flex-wrap:wrap}
+  .saved-entry button{white-space:normal}
+  .footer .legal-links{flex-wrap:wrap}
+  .field input,.field textarea,.advanced-settings select,.rewrite-controls select,#authForm input,.delete-account input{font-size:16px}
+}
+@media(max-width:390px){
+  .topbar .brand{font-size:18px}
+  .topbar .mark{width:30px;height:30px}
+  .topbar .account-link{font-size:12px;padding:8px 9px}
+  .empty-illustration{max-width:100%}
+  .score-area{flex-wrap:wrap}
+  .score-ring{margin-inline:auto}
+  .mini-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mini-metrics>div:last-child{grid-column:1/-1}
+  .skill-grid{grid-template-columns:1fr}
+  .mobile-links{grid-template-columns:1fr 1fr}
+}
