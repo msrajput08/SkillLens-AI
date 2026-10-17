@@ -16,3 +16,25 @@
   .comparison{max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain}
   .footer-links{flex-wrap:wrap}
 }
+
+/* Compact mobile guide navigation: logo and menu share a single header row. */
+.guide-mobile-menu{display:none}
+@media(max-width:760px){
+  .site-header{position:relative;z-index:30}
+  .site-header .nav{position:relative;display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;min-height:64px;padding:10px 0;gap:12px}
+  .site-header .brand{flex:0 1 auto;min-width:0;white-space:nowrap;font-size:clamp(20px,5.4vw,24px);letter-spacing:-.8px}
+  .site-header .nav-links{display:none}
+  .site-header .guide-mobile-menu{display:block;margin-left:auto;flex:0 0 auto}
+  .guide-mobile-menu summary{list-style:none;display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:44px;padding:9px 15px;border:1px solid #bed8c8;border-radius:11px;background:#eff8f1;color:#166c4a;font-size:13px;font-weight:800;cursor:pointer;user-select:none}
+  .guide-mobile-menu summary::-webkit-details-marker{display:none}
+  .guide-mobile-menu summary span{font-size:18px;line-height:1}
+  .guide-mobile-menu[open] summary{background:#e1f2e5;border-color:#8ebc9e}
+  .guide-mobile-menu summary:focus-visible{outline:3px solid #47b58e;outline-offset:3px}
+  .guide-mobile-links{position:absolute;top:calc(100% - 1px);right:0;left:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:14px;background:#fff;border:1px solid #dce9df;border-radius:0 0 15px 15px;box-shadow:0 16px 35px #123d2426;z-index:40}
+  .guide-mobile-links a{display:flex;justify-content:center;align-items:center;min-width:0;min-height:46px;padding:10px 8px;background:#f3f8f4;border:1px solid #e1ece3;border-radius:10px;text-align:center;text-decoration:none;color:#285f43;font-size:12px;font-weight:750;line-height:1.3;overflow-wrap:anywhere}
+  .guide-mobile-links a.nav-cta{grid-column:1/-1;color:#fff;background:#15764e;border-color:#15764e;font-size:13px}
+}
+@media(max-width:330px){
+  .site-header .brand{font-size:19px}
+  .guide-mobile-menu summary{padding:9px 12px}
+}
