@@ -1,0 +1,12 @@
+/* Privacy consent controls — independent of the existing app theme. */
+.skilllens-analytics-consent{position:fixed;bottom:16px;left:16px;right:16px;z-index:2147483640;max-width:680px;margin:0 auto;display:flex;align-items:center;gap:18px;padding:18px 20px;border-radius:16px;background:#111827;color:#f9fafb;border:1px solid #475569;box-shadow:0 15px 50px rgba(0,0,0,.25);font:14px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.skilllens-analytics-copy{flex:1;min-width:0}
+.skilllens-analytics-copy strong{font-size:15px;color:#fff}
+.skilllens-analytics-copy p{margin:5px 0 0;color:#e5e7eb}
+.skilllens-analytics-copy a{color:#a5e3ff;text-decoration:underline}
+.skilllens-analytics-actions{display:flex;flex-wrap:wrap;gap:8px}
+.skilllens-analytics-actions button{cursor:pointer;border-radius:9px;border:1px solid #64748b;padding:10px 12px;color:#fff;background:transparent;font:600 13px system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.skilllens-analytics-actions button[data-ga-choice="accept"]{background:#0ea5e9;border-color:#0ea5e9;color:#08151e}
+.skilllens-analytics-actions button:focus-visible,.skilllens-analytics-consent a:focus-visible{outline:3px solid #facc15;outline-offset:3px}
+@media (max-width:620px){.skilllens-analytics-consent{bottom:10px;left:10px;right:10px;display:block;padding:14px}.skilllens-analytics-actions{margin-top:12px}.skilllens-analytics-actions button{flex:1}}
+@media print{.skilllens-analytics-consent{display:none!important}}
