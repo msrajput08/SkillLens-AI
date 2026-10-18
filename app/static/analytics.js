@@ -42,6 +42,12 @@
     window.gtag('config', ID, {
       // Don't expose pasted resumes, draft identifiers or search/query parameters.
       page_location: location.origin + location.pathname,
+      page_referrer: (() => {
+        try {
+          const ref = new URL(document.referrer);
+          return /^https?:$/.test(ref.protocol) ? ref.origin + ref.pathname : '';
+        } catch (_) { return ''; }
+      })(),
       allow_google_signals: false,
       allow_ad_personalization_signals: false
     });
