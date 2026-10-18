@@ -120,8 +120,8 @@ async def security_headers(request, call_next):
     response.headers['X-Permitted-Cross-Domain-Policies'] = 'none'
     response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
     response.headers['Content-Security-Policy'] = (
-        "default-src 'self'; script-src 'self' https://checkout.razorpay.com; style-src 'self'; img-src 'self' data: https://*.razorpay.com; frame-src https://*.razorpay.com; "
-        "connect-src 'self' https://*.razorpay.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+        "default-src 'self'; script-src 'self' https://checkout.razorpay.com https://www.googletagmanager.com; style-src 'self'; img-src 'self' data: https://*.razorpay.com https://www.google-analytics.com; frame-src https://*.razorpay.com; "
+        "connect-src 'self' https://*.razorpay.com https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
     )
     if request.url.path.startswith('/api/'):
         response.headers['Cache-Control'] = 'no-store'
