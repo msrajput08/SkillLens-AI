@@ -9,6 +9,7 @@ const message = text => { el('authMessage').textContent = text; };
 const escapeText = x => String(x ?? '');
 window.openAccount = () => { dialog.hidden = false; el('authEmail').focus(); };
 window.skilllensHasSession = () => !!currentUser;
+window.skilllensCurrentTier = () => currentUser?.tier ?? null;
 window.openSignup = () => { switchAuth('register');window.openAccount(); };
 window.apiFetch = async (path, options = {}) => {
   const opts = {...options, credentials: 'same-origin', headers: {...(options.headers || {})}};
