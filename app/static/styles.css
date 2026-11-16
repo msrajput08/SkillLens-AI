@@ -140,3 +140,8 @@
 #proAvailability{margin:8px 0;font-size:11px;line-height:1.6}
 #upgradeButton:disabled{opacity:.62;cursor:not-allowed}
 @media(max-width:620px){.guest-preview-state{padding:22px 17px}.guest-conversion{padding:18px}.guest-preview-state .score-area{gap:10px}}
+
+.member-upgrade{margin:20px 0 0;padding:17px;border:1px solid #d2e8cf;border-radius:11px;background:#f4f9f2}
+.member-upgrade strong{font-size:13px;color:var(--green-dark)}
+.member-upgrade p{font-size:11px;line-height:1.7;color:#52685b;margin:8px 0 12px}
+.member-upgrade .secondary-btn{margin:0}
