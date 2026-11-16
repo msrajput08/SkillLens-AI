@@ -121,3 +121,22 @@
   .skill-grid{grid-template-columns:1fr}
   .mobile-links{grid-template-columns:1fr 1fr}
 }
+
+/* Conversion-focused first-use preview: uses the existing report design system. */
+.hero-preview-link{display:inline-flex;margin-top:17px;color:var(--green-dark);font-size:13px;font-weight:800;text-decoration:underline;text-underline-offset:4px}
+.guest-preview-state{padding:29px;display:flex;flex-direction:column;gap:17px}
+.guest-preview-state .result-heading{margin-bottom:0}
+.guest-preview-state .score-area{margin:0}
+.guest-skills{margin:0;gap:14px}
+.guest-conversion{border:1px solid #cfe5d4;border-radius:14px;background:#f3faf1;padding:22px}
+.guest-conversion h4{font-size:17px;margin:0 0 8px}
+.guest-conversion p{font-size:12px;color:#526a58;line-height:1.7;margin:0}
+.guest-conversion .primary-btn{margin-top:14px}
+.guest-conversion .link-btn{margin-top:13px}
+.quota-offer{border:1px solid #d3e5cf;border-radius:11px;background:#f2f8ee;padding:14px;margin-top:12px}
+.quota-offer strong{font-size:13px;color:#295b3c}
+.quota-offer p{font-size:11px;line-height:1.6;color:#54705b;margin:7px 0 12px}
+.quota-offer .secondary-btn{width:100%;margin-top:0}
+#proAvailability{margin:8px 0;font-size:11px;line-height:1.6}
+#upgradeButton:disabled{opacity:.62;cursor:not-allowed}
+@media(max-width:620px){.guest-preview-state{padding:22px 17px}.guest-conversion{padding:18px}.guest-preview-state .score-area{gap:10px}}
