@@ -325,6 +325,8 @@ async def rewrite_endpoint(
     if mode not in ('safe', 'llm'):
         raise HTTPException(422, detail='mode must be safe or llm.')
     ensure_quota(user, 'rewrite')
+    # Paid quota limits the month; burst throttling also protects model API costs.
+    throttle('rewrite-burst:' + user.id, limit=12, seconds=3600)
     resume = await get_resume(resume_text, resume_file)
     if mode == 'safe':
         result = safe_rewrite(resume, job_description, target_role)
