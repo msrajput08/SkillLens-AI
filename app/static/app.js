@@ -36,8 +36,8 @@ dz.addEventListener('drop', e=>{ const file = e.dataTransfer?.files?.[0]; if(fil
 $('jobDescription').addEventListener('input', e => $('jdCount').textContent = `${e.target.value.length.toLocaleString()} characters`);
 $('resumeText').addEventListener('input', e => $('resumeCount').textContent = `${e.target.value.length.toLocaleString()} characters`);
 function showError(msg){$('formError').hidden=false;$('formError').textContent=msg;}
-function hideError(){$('formError').hidden=true;$('formError').textContent='';}
-function showState(s){$('emptyState').hidden=s!=='empty';$('loadingState').hidden=s!=='loading';$('resultState').hidden=s!=='result';}
+function hideError(){$('formError').hidden=true;$('formError').textContent='';$('quotaOffer').hidden=true;}
+function showState(s){$('emptyState').hidden=s!=='empty';$('loadingState').hidden=s!=='loading';$('resultState').hidden=s!=='result';$('guestPreviewState').hidden=s!=='guest';}
 $('trySample').addEventListener('click',()=>{
   $('roleTitle').value='Junior Java Backend Software Engineer';
   $('jobDescription').value=demoJD;
@@ -56,6 +56,34 @@ function clearAll() {
   switchInput('paste');hideError();showState('empty');
 }
 $('clearButton').addEventListener('click',clearAll);
+window.addEventListener('skilllens:session', () => {
+  $('analyzeText').textContent=window.skilllensHasSession?.()?'Analyze my resume':'See my free preview';
+});
+$('guestSignupButton').addEventListener('click', () => {
+  window.skilllensTrack?.('signup_cta_clicked',{source:'preview'});
+  window.openSignup?.();
+});
+$('guestSigninButton').addEventListener('click', () => {
+  window.skilllensTrack?.('signup_cta_clicked',{source:'preview'});
+  window.openAccount?.();
+});
+$('quotaExplore').addEventListener('click', () => {
+  window.skilllensTrack?.('upgrade_cta_clicked',{source:'quota'});
+  $('pricing').scrollIntoView({behavior:'smooth',block:'start'});
+});
+function showQuotaOffer(feature){
+  $('quotaOffer').hidden=false;
+  window.skilllensTrack?.('quota_exhausted',{feature});
+}
+function renderGuestPreview(r,partial){
+  $('guestPreviewTitle').textContent=r.role==='this role'?'Your resume snapshot':r.role;
+  $('guestPreviewScore').textContent=r.alignment_estimate;
+  $('guestPreviewRing').style.setProperty('--progress',r.alignment_estimate+'%');
+  fillChips('guestPreviewMatched',r.matched_skills||[],false);
+  fillChips('guestPreviewMissing',r.potential_gaps||[],true);
+  $('guestPreviewDisclaimer').textContent=r.disclaimer+(partial?' Preview uses the first 12,000 characters of each input.':'');
+}
+
 $('newAnalysis').addEventListener('click',()=>{showState('empty');$('jobDescription').focus();$('workspace').scrollIntoView({behavior:'smooth',block:'start'});});
 form.addEventListener('submit',async (e)=>{
   e.preventDefault();hideError();
@@ -64,21 +92,47 @@ form.addEventListener('submit',async (e)=>{
   if(method==='upload'&&!lastFile){showError('Please upload a resume, or choose “Paste text” instead.');return;}
   if(method==='upload'&&lastFile.size>6*1024*1024){showError('Resume file must be 6 MB or smaller.');return;}
   if(method==='paste'&&$('resumeText').value.trim().length<100){showError('Please paste at least 100 characters of readable resume text.');return;}
+  const guest=!window.skilllensHasSession?.();
   const payload=new FormData();
   payload.append('job_description',jd);payload.append('target_role',$('roleTitle').value);
   if(method==='upload') payload.append('resume_file',lastFile,lastFile.name);
   else payload.append('resume_text',$('resumeText').value);
   payload.append('semantic_mode',$('semanticMode').value);
   payload.append('use_custom_model',String($('customEvidence').checked));
-  const button=$('analyzeButton');button.disabled=true;$('analyzeText').textContent='Analyzing…';
+  const button=$('analyzeButton');button.disabled=true;$('analyzeText').textContent=guest?'Preparing preview…':'Analyzing…';
   showState('loading');
+  window.skilllensTrack?.('analysis_started',{feature:'analysis'});
   try {
-    const response=await apiFetch('/api/analyze',{method:'POST',body:payload});
-    let data;try{data=await response.json()}catch{throw new Error('The server returned an unreadable response.');}
-    if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'The analysis could not be completed.');
-    currentReport=data;renderReport(data);showState('result');
-  }catch(error){showState('empty');showError(error.message||'Analysis failed. Please try again.');}
-  finally{button.disabled=false;$('analyzeText').textContent='Analyze my resume';}
+    if(guest){
+      if(method!=='paste') throw new Error('Use Import PDF / DOCX / TXT to preview locally extracted resume text.');
+      const resume=$('resumeText').value.trim();
+      const partial=resume.length>12000||jd.length>12000;
+      const response=await fetch('/api/preview',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({job_description:jd.slice(0,12000),resume_text:resume.slice(0,12000),target_role:$('roleTitle').value})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok){
+        const error=new Error(data.detail||'Preview unavailable. Please try again.');
+        error.status=response.status;throw error;
+      }
+      renderGuestPreview(data,partial);showState('guest');
+      window.skilllensTrack?.('preview_completed',{feature:'analysis'});
+    }else{
+      const response=await apiFetch('/api/analyze',{method:'POST',body:payload});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok){
+        const error=new Error(typeof data.detail==='string'?data.detail:'The analysis could not be completed.');
+        error.status=response.status;throw error;
+      }
+      currentReport=data;renderReport(data);showState('result');
+      window.skilllensTrack?.('analysis_completed',{feature:'analysis'});
+    }
+  }catch(error){
+    showState('empty');showError(error.message||'Analysis failed. Please try again.');
+    if(error.status===402)showQuotaOffer('analysis');
+  }finally{
+    button.disabled=false;
+    $('analyzeText').textContent=window.skilllensHasSession?.()?'Analyze my resume':'See my free preview';
+  }
 });
 const short=(arr,empty)=>arr?.length?arr.join(', '):empty;
 function fillChips(id,arr,missing){const parent=$(id);parent.replaceChildren(); if(!arr.length){parent.append(elem('span','none-msg',missing?'No documented gaps in the detected category.':'None detected.'));return;} for(const item of arr){parent.append(elem('span','chip'+(missing?' missing':''),item));}}
@@ -236,9 +290,10 @@ $('rewriteButton').addEventListener('click',async ()=>{
     const data=jobPayload();data.append('mode',$('rewriteMode').value);data.append('consent_external_ai',String($('aiConsent').checked));
     const response=await apiFetch('/api/rewrite',{method:'POST',body:data});
     const body=await response.json().catch(()=>({}));
-    if(!response.ok)throw Error(typeof body.detail==='string'?body.detail:'Rewrite failed.');
+    if(!response.ok){const err=new Error(typeof body.detail==='string'?body.detail:'Rewrite failed.');err.status=response.status;throw err;}
     displayRewrites(body);
-  }catch(error){rewriteAlert(error.message||'Unable to generate a draft.');}
+    window.skilllensTrack?.('rewrite_completed',{feature:'rewrite'});
+  }catch(error){rewriteAlert(error.message||'Unable to generate a draft.'); if(error.status===402)showQuotaOffer('rewrite');}
   finally{btn.disabled=false;btn.textContent='Generate tailored draft ↗';}
 });
 function downloadText(text,filename,type='text/plain;charset=utf-8'){
