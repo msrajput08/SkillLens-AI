@@ -13,7 +13,7 @@
     'checkout_started', 'checkout_verified', 'pro_activated'
   ]);
   const ATTRS = {
-    source: new Set(['preview', 'pricing', 'quota', 'account']),
+    source: new Set(['preview', 'pricing', 'quota', 'account', 'report']),
     feature: new Set(['analysis', 'rewrite'])
   };
   window.skilllensTrack = function(eventName, attributes = {}) {
