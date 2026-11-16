@@ -66,8 +66,10 @@ def test_plan_display_does_not_show_test_checkout_as_paid_pro():
     from pathlib import Path
     root=Path(__file__).resolve().parents[1]
     js=(root/'app/static/saas.js').read_text()
-    assert "if(b.enabled && b.price === '199' && b.recurring)" in js
-    assert "el('upgradeButton').hidden=true" in js
+    assert "const available=b.enabled && b.price === '199' && b.recurring;" in js
+    assert "el('upgradeButton').disabled=!available;" in js
+    assert "el('upgradeButton').disabled=true;" in js
+    assert "Checkout currently unavailable" in js
     assert "await refreshAccount()" in js
     assert "/api/billing/confirm" in js
     assert "/api/billing/status',{method:'POST'}" in js

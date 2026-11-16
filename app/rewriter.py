@@ -127,7 +127,7 @@ async def ai_rewrite(resume: str, jd: str, role: str, consent_external_ai: bool)
         base = os.getenv('SKILLLENS_OLLAMA_URL', 'http://127.0.0.1:11434').rstrip('/')
         # Provider endpoint controlled by admin, never browser data.
         url = base + '/api/chat'
-        payload = {'model': model, 'stream': False, 'format': 'json', 'messages': messages, 'options': {'temperature': 0.1}}
+        payload = {'model': model, 'stream': False, 'format': 'json', 'messages': messages, 'options': {'temperature': 0.1, 'num_predict': 1200}}
         headers = {}
     else:
         base = os.getenv('SKILLLENS_LLM_BASE_URL', 'https://api.openai.com/v1').rstrip('/')
@@ -135,7 +135,7 @@ async def ai_rewrite(resume: str, jd: str, role: str, consent_external_ai: bool)
         if not key:
             raise RewriteError('Configure SKILLLENS_LLM_API_KEY on the server. Never put keys in the browser.')
         url = base + '/chat/completions'
-        payload = {'model': model, 'messages': messages, 'temperature': 0.1, 'response_format': {'type': 'json_object'}}
+        payload = {'model': model, 'messages': messages, 'temperature': 0.1, 'max_tokens': 1200, 'response_format': {'type': 'json_object'}}
         headers = {'Authorization': 'Bearer ' + key}
     try:
         async with httpx.AsyncClient(timeout=50) as client:

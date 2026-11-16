@@ -5,6 +5,7 @@ from app.main import app
 
 
 STYLE_VERSION = "20261018-mobile2"
+HOME_STYLE_VERSION = "20261116-growth1"
 PAGES = {
     "/": "styles.css",
     "/builder": "product.css",
@@ -20,7 +21,8 @@ def test_all_product_pages_request_current_mobile_stylesheet():
         for page, css in PAGES.items():
             response = client.get(page)
             assert response.status_code == 200, page
-            url = f"/assets/{css}?v={STYLE_VERSION}"
+            version = HOME_STYLE_VERSION if page == "/" else STYLE_VERSION
+            url = f"/assets/{css}?v={version}"
             assert f'href="{url}"' in response.text, page
             static = client.get(url)
             assert static.status_code == 200, url
@@ -52,6 +54,6 @@ def test_homepage_mobile_navigation_is_accessible():
         html = client.get("/").text
         assert 'class="mobile-menu"' in html
         assert 'aria-label="Mobile navigation"' in html
-        css = client.get(f"/assets/styles.css?v={STYLE_VERSION}").text
+        css = client.get(f"/assets/styles.css?v={HOME_STYLE_VERSION}").text
         assert ".mobile-menu{display:none}" in css
         assert ".topbar .toplinks{display:none}" in css

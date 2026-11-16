@@ -16,7 +16,7 @@ from .semantic import retrieval, SemanticUnavailable, model_status
 from .custom_model import assess, status as custom_status, CustomModelUnavailable
 from .rewriter import ai_rewrite, safe_rewrite, RewriteError, llm_config
 from .exports import draft_docx
-from .saas import router as saas_router, init_db, require_user, charge, ensure_quota, PROD, SITE_URL
+from .saas import router as saas_router, init_db, require_user, charge, ensure_quota, throttle, PROD, SITE_URL
 from .payments import router as payments_router
 from .legal import router as legal_router
 from .malware import scan_resume
@@ -249,6 +249,39 @@ def check_jd(jd: str, role: str):
         raise HTTPException(422, detail='Role title is too long.')
 
 
+
+class GuestPreviewInput(BaseModel):
+    """Small, text-only sample. Full reports still require a verified account."""
+    resume_text: str = Field(min_length=100, max_length=12000)
+    job_description: str = Field(min_length=80, max_length=12000)
+    target_role: str = Field(default='', max_length=120)
+
+
+@app.post('/api/preview')
+def guest_preview(data: GuestPreviewInput, request: Request):
+    """Give visitors useful evidence-based feedback before requiring registration.
+
+    Preview uses only the inexpensive classic analyzer, does not save resume text,
+    cannot call external AI or create billable user entitlements. Persistent
+    per-IP throttling limits casual abuse; deployment still needs a WAF.
+    """
+    throttle('guest-preview:' + (request.client.host if request.client else 'unknown'),
+             limit=20, seconds=86400)
+    check_jd(data.job_description, data.target_role)
+    if len(data.resume_text.strip()) < 100:
+        raise HTTPException(422, 'Please provide at least 100 characters of resume text.')
+    result = analyze(data.resume_text, data.job_description, data.target_role)
+    return {
+        'role': result['role'],
+        'alignment_estimate': result['score'],
+        'matched_skills': result['required']['matched'][:3],
+        'potential_gaps': result['required']['not_found'][:3],
+        'preview_only': True,
+        'disclaimer': ('A limited estimate from documented text, not an employer ATS score '
+                       'or hiring prediction. Sign in for the detailed analysis.'),
+    }
+
+
 @app.post('/api/analyze')
 async def analyze_endpoint(
     job_description: str = Form(...), target_role: str = Form(''), resume_text: str = Form(''),
@@ -292,6 +325,8 @@ async def rewrite_endpoint(
     if mode not in ('safe', 'llm'):
         raise HTTPException(422, detail='mode must be safe or llm.')
     ensure_quota(user, 'rewrite')
+    # Paid quota limits the month; burst throttling also protects model API costs.
+    throttle('rewrite-burst:' + user.id, limit=12, seconds=3600)
     resume = await get_resume(resume_text, resume_file)
     if mode == 'safe':
         result = safe_rewrite(resume, job_description, target_role)

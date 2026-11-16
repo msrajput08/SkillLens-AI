@@ -8,13 +8,16 @@ const dialog = el('accountOverlay');
 const message = text => { el('authMessage').textContent = text; };
 const escapeText = x => String(x ?? '');
 window.openAccount = () => { dialog.hidden = false; el('authEmail').focus(); };
+window.skilllensHasSession = () => !!currentUser;
+window.skilllensCurrentTier = () => currentUser?.tier ?? null;
+window.openSignup = () => { switchAuth('register');window.openAccount(); };
 window.apiFetch = async (path, options = {}) => {
   const opts = {...options, credentials: 'same-origin', headers: {...(options.headers || {})}};
   if (opts.method && !['GET','HEAD','OPTIONS'].includes(opts.method.toUpperCase()) && csrfToken) {
     opts.headers['X-CSRF-Token'] = csrfToken;
   }
   const res = await fetch(path, opts);
-  if (res.status === 401) { currentUser = null; showAccount(); }
+  if (res.status === 401) { currentUser = null; showAccount(); window.openAccount(); }
   return res;
 };
 function showAccount() {
@@ -33,6 +36,7 @@ function showAccount() {
     el('cancelPro').hidden = !(currentUser.billing_status && ['active', 'pending', 'authenticated', 'created', 'halted'].includes(currentUser.billing_status));
     el('checkBillingStatus').hidden = !currentUser.billing_status;
   }
+  window.dispatchEvent(new Event('skilllens:session'));
 }
 async function refreshAccount() {
   const res = await fetch('/api/auth/me', {credentials:'same-origin'});
@@ -61,8 +65,13 @@ el('authForm').addEventListener('submit', async e => {
       body: JSON.stringify({email:el('authEmail').value, password:el('authPassword').value})});
     const data = await resp.json();
     if(!resp.ok)throw Error(typeof data.detail === 'string' ? data.detail : 'Request failed');
-    if (authMode === 'register') { switchAuth('login'); message(data.message); }
-    else { currentUser = data.user; csrfToken = data.csrf; showAccount(); dialog.hidden = true; }
+    if (authMode === 'register') {
+      window.skilllensTrack?.('signup_submitted',{source:'account'});
+      switchAuth('login');message(data.message);
+    }else{
+      currentUser = data.user;csrfToken = data.csrf;showAccount();dialog.hidden = true;
+      window.skilllensTrack?.('login_completed',{source:'account'});
+    }
   } catch(err) { message(err.message); }
 });
 el('forgotPassword').onclick = async () => {
@@ -112,12 +121,14 @@ function loadScript(url) {
   });
 }
 el('upgradeButton').onclick = async () => {
-  if(!currentUser){window.openAccount();return;}
+  window.skilllensTrack?.('upgrade_cta_clicked',{source:'pricing'});
+  if(!currentUser){window.openSignup();return;}
   const btn=el('upgradeButton');btn.disabled=true;
   try {
     const res=await apiFetch('/api/billing/checkout',{method:'POST'});
     const data=await res.json();
     if(!res.ok)throw Error(data.detail || 'Billing unavailable');
+    window.skilllensTrack?.('checkout_started',{source:'pricing'});
     await loadScript('https://checkout.razorpay.com/v1/checkout.js');
     const checkout=new Razorpay({key:data.key,subscription_id:data.subscription_id,name:data.name,
       description:'Monthly SkillLens Pro',prefill:{email:data.email},
@@ -136,6 +147,8 @@ el('upgradeButton').onclick = async () => {
            const state=await confirmed.json();
            if(!confirmed.ok)throw Error(state.detail||'Checkout verification unavailable.');
            await refreshAccount();
+           window.skilllensTrack?.('checkout_verified',{source:'pricing'});
+           if(state.tier==='pro')window.skilllensTrack?.('pro_activated',{source:'pricing'});
            message(state.message||'Authorization received. Refresh billing status for paid access.');
          }catch(error){
            await refreshAccount().catch(()=>{});
@@ -185,18 +198,19 @@ async function fromLink(){
 }
 refreshAccount().then(fromLink).catch(()=>showAccount());
 
-fetch('/api/billing/config').then(r=>r.json()).then(b => {
-  const card=document.querySelector('.plan-card.pro');
-  if(!card) return;
-  card.style.display='block';
-  if(b.enabled && b.price === '199' && b.recurring){
-    el('proPrice').textContent='₹199 / month';
-    el('upgradeButton').hidden=false;
-  }else{
-    el('proPrice').textContent='Coming soon';
-    el('upgradeButton').hidden=true;
-  }
-}).catch(()=>{});
+fetch('/api/billing/config').then(r=>{if(!r.ok)throw Error('Billing status unavailable');return r.json();}).then(b => {
+  const available=b.enabled && b.price === '199' && b.recurring;
+  el('proPrice').textContent='₹199 / month';
+  el('upgradeButton').disabled=!available;
+  el('upgradeButton').textContent=available?'Upgrade securely ↗':'Checkout currently unavailable';
+  el('proAvailability').textContent=available?
+    'Recurring payment available through Razorpay. Review the terms before authorizing.':
+    'Paid subscriptions are temporarily unavailable. The free tools remain available.';
+}).catch(()=>{
+  el('upgradeButton').disabled=true;
+  el('upgradeButton').textContent='Checkout currently unavailable';
+  el('proAvailability').textContent='Could not verify purchase availability. No payment can be started.';
+});
 
 el('resendVerification').onclick=async()=>{
   const email=el('authEmail').value.trim();
