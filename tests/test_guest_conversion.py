@@ -78,3 +78,23 @@ def test_frontend_has_preview_signup_and_safe_billing_fallback():
     assert "Checkout currently unavailable" in auth
     assert "window.skilllensTrack" in analytics
     assert "readChoice() !== 'accept'" in analytics
+
+
+def test_guest_preview_throttle_stops_inference(monkeypatch):
+    import app.main as main
+    from fastapi import HTTPException
+
+    def blocked(*args, **kwargs):
+        raise HTTPException(429, "Preview request limit reached.")
+
+    def forbidden_inference(*args, **kwargs):
+        raise AssertionError("Rate-limited requests must never reach the analyzer.")
+
+    monkeypatch.setattr(main, "throttle", blocked)
+    monkeypatch.setattr(main, "analyze", forbidden_inference)
+    with TestClient(app) as client:
+        response = client.post("/api/preview", json={
+            "resume_text": RESUME,
+            "job_description": JD,
+        })
+        assert response.status_code == 429
