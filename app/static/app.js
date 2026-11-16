@@ -67,6 +67,10 @@ $('guestSigninButton').addEventListener('click', () => {
   window.skilllensTrack?.('signup_cta_clicked',{source:'preview'});
   window.openAccount?.();
 });
+$('memberUpgradeButton').addEventListener('click', () => {
+  window.skilllensTrack?.('upgrade_cta_clicked',{source:'report'});
+  $('pricing').scrollIntoView({behavior:'smooth',block:'start'});
+});
 $('quotaExplore').addEventListener('click', () => {
   window.skilllensTrack?.('upgrade_cta_clicked',{source:'quota'});
   $('pricing').scrollIntoView({behavior:'smooth',block:'start'});
@@ -179,6 +183,7 @@ function renderReport(r){
     $('evidenceSection').append(holder);
   }
   $('rewriteContent').hidden=true;$('rewriteInfo').textContent='';$('rewriteError').hidden=true;
+  $('memberUpgrade').hidden=window.skilllensCurrentTier?.()!=='free';
   activateResultTab('matchSection');
 }
 function activateResultTab(section){
