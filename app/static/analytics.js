@@ -5,6 +5,25 @@
   const STORAGE_KEY = 'skilllens.analytics.consent.v1';
   let loaded = false;
   let banner = null;
+  // Explicit allowlist prevents accidental capture of resumes, jobs, names or emails.
+  const EVENTS = new Set([
+    'analysis_started', 'preview_completed', 'analysis_completed',
+    'signup_cta_clicked', 'signup_submitted', 'login_completed',
+    'quota_exhausted', 'rewrite_completed', 'upgrade_cta_clicked',
+    'checkout_started', 'checkout_verified', 'pro_activated'
+  ]);
+  const ATTRS = {
+    source: new Set(['preview', 'pricing', 'quota', 'account']),
+    feature: new Set(['analysis', 'rewrite'])
+  };
+  window.skilllensTrack = function(eventName, attributes = {}) {
+    if (!loaded || readChoice() !== 'accept' || !EVENTS.has(eventName) || typeof window.gtag !== 'function') return;
+    const safe = {};
+    for (const [name, allowed] of Object.entries(ATTRS)) {
+      if (allowed.has(attributes[name])) safe[name] = attributes[name];
+    }
+    window.gtag('event', eventName, safe);
+  };
 
   function readChoice() {
     try {
