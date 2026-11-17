@@ -58,7 +58,12 @@ def test_summary_is_accessible_only_to_configured_verified_owner(monkeypatch):
         assert client.post('/api/auth/register',json=creds).status_code == 200
         assert client.post('/api/auth/login',json=creds).status_code == 200
         assert client.get('/api/analytics/summary').status_code == 404
+        assert client.get('/analytics').status_code == 404
         monkeypatch.setenv('SKILLLENS_ANALYTICS_ADMIN_EMAIL', creds['email'])
+        dashboard = client.get('/analytics')
+        assert dashboard.status_code == 200
+        assert b'Growth Analytics' in dashboard.content
+        assert dashboard.headers['cache-control'] == 'no-store'
         summary = client.get('/api/analytics/summary?days=30')
         assert summary.status_code == 200
         data = summary.json()
