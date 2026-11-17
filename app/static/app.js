@@ -46,6 +46,7 @@ function clearAll() {
   $('uploadStatus').classList.remove('error');
   $('importTextFile').value='';
   $('resumeFile').value='';
+  window.dispatchEvent(new Event('skilllens:clear'));
   $('jdCount').textContent='0 characters';$('resumeCount').textContent='0 characters';
   switchInput('paste');hideError();showState('empty');
 }
