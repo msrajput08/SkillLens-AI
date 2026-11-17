@@ -2,6 +2,7 @@
 from datetime import timedelta
 from sqlalchemy import delete
 from .saas import Session, SavedReport, SessionToken, OneTimeToken, RateWindow, WebhookEvent, ResumeDraft, utcnow
+from .metrics import DailyMetric
 
 
 def purge():
@@ -15,6 +16,7 @@ def purge():
             (OneTimeToken, OneTimeToken.expires_at <= now),
             (RateWindow, RateWindow.expires_at <= now - timedelta(days=1)),
             (WebhookEvent, WebhookEvent.processed_at <= now - timedelta(days=90)),
+            (DailyMetric, DailyMetric.day < (now.date() - timedelta(days=90)).isoformat()),
         ]:
             removed[model.__tablename__] = db.execute(delete(model).where(predicate)).rowcount
     return removed

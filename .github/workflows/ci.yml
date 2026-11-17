@@ -27,8 +27,11 @@ jobs:
           node --check app/static/saas.js
           node --check app/static/analytics.js
           node --check app/static/importer.js
+          node --check app/static/analytics-dashboard.js
       - name: Browser file import regressions
         run: node --test tests/test_browser_upload.cjs
+      - name: Anonymous analytics regressions
+        run: node --test tests/test_anonymous_analytics.cjs
       - name: Full suite
         env:
           SKILLLENS_ENV: development
