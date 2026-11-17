@@ -3,7 +3,6 @@ const $ = (id) => document.getElementById(id);
 const form = $('analyzerForm');
 let method = 'paste';
 let currentReport = null;
-let lastFile = null;
 const demoResume = `Alex Example\nalex@example.com | linkedin.com/in/alexexample | github.com/alexexample\n\nPROFESSIONAL SUMMARY\nComputer Engineering graduate interested in scalable Java backend engineering.\n\nTECHNICAL SKILLS\nJava, Spring Boot, Spring Security, PostgreSQL, SQL, REST APIs, JWT, Git, Docker, Python, React, HTML, CSS, Unit Testing.\n\nPROJECTS\nTaskFlow — Built a Java Spring Boot backend API for a task manager with JWT access control, PostgreSQL data persistence and JUnit unit tests. Used Git to track changes and Docker to package the service.\n\nEDUCATION\nBachelor of Engineering in Computer Engineering, Example University, 2026.`;
 const demoJD = `Junior Java Backend Software Engineer\n\nRequirements:\n- Build backend services with Java, Spring Boot and REST APIs.\n- Work with relational data using SQL and PostgreSQL.\n- Use Git, write unit tests and maintain testable code.\n- Familiarity with Docker, CI/CD and secure APIs with OAuth.\n\nNice-to-have:\n- AWS and Kubernetes cloud deployment.\n- React, microservices and system design experience.\n\nYou will build reliable product features with your team, review code, and improve service quality.`;
 function elem(tag, className = '', text = '') { const el = document.createElement(tag); if(className) el.className=className; el.textContent=text; return el; }
@@ -20,19 +19,7 @@ function switchInput(to) {
 }
 $('uploadTab').addEventListener('click',()=>switchInput('upload'));
 $('pasteTab').addEventListener('click',()=>switchInput('paste'));
-function setFile(file) {
-  if(!file) return;
-  lastFile = file;
-  $('fileTitle').textContent = file.name;
-  $('fileSubtitle').textContent = `${(file.size/(1024*1024)).toFixed(2)} MB · Ready to analyze`;
-  $('dropzone').classList.add('selected');
-  hideError();
-}
-$('resumeFile').addEventListener('change', e => setFile(e.target.files[0]));
-const dz = $('dropzone');
-for(const eventName of ['dragenter','dragover']) dz.addEventListener(eventName,e=>{e.preventDefault();dz.classList.add('dragover')});
-for(const eventName of ['dragleave','drop']) dz.addEventListener(eventName,e=>{e.preventDefault();dz.classList.remove('dragover')});
-dz.addEventListener('drop', e=>{ const file = e.dataTransfer?.files?.[0]; if(file) { if(typeof DataTransfer!=='undefined'){const d=new DataTransfer();d.items.add(file);$('resumeFile').files=d.files;}setFile(file); }});
+// File selection and drag/drop are handled by importer.js; raw files are never sent to the API.
 $('jobDescription').addEventListener('input', e => $('jdCount').textContent = `${e.target.value.length.toLocaleString()} characters`);
 $('resumeText').addEventListener('input', e => $('resumeCount').textContent = `${e.target.value.length.toLocaleString()} characters`);
 function showError(msg){$('formError').hidden=false;$('formError').textContent=msg;}
@@ -49,9 +36,16 @@ $('trySample').addEventListener('click',()=>{
   $('jobDescription').focus();
 });
 function clearAll() {
-  form.reset(); lastFile=null;currentReport=null;
-  $('fileTitle').textContent='Drop your resume here';
+  form.reset(); currentReport=null;
+  $('fileTitle').textContent='Select or drop your resume';
   $('fileSubtitle').textContent='or browse files from your device';
+  $('dropzone').classList.remove('selected');
+  $('importStatus').textContent='Only extracted text is sent when you analyze; the original file remains in your browser.';
+  $('importStatus').classList.remove('error');
+  $('uploadStatus').textContent='Choose a file. The text will appear in the Paste text tab when ready; original files stay on your device.';
+  $('uploadStatus').classList.remove('error');
+  $('importTextFile').value='';
+  $('resumeFile').value='';
   $('jdCount').textContent='0 characters';$('resumeCount').textContent='0 characters';
   switchInput('paste');hideError();showState('empty');
 }
@@ -93,14 +87,13 @@ form.addEventListener('submit',async (e)=>{
   e.preventDefault();hideError();
   const jd=$('jobDescription').value.trim();
   if(jd.length<80){showError('Please paste a job description with at least 80 characters.');return;}
-  if(method==='upload'&&!lastFile){showError('Please upload a resume, or choose “Paste text” instead.');return;}
-  if(method==='upload'&&lastFile.size>6*1024*1024){showError('Resume file must be 6 MB or smaller.');return;}
-  if(method==='paste'&&$('resumeText').value.trim().length<100){showError('Please paste at least 100 characters of readable resume text.');return;}
+  if(method==='upload'){showError('Choose a PDF, DOCX or TXT file above and let it finish importing. The Paste text tab will open automatically.');return;}
+  if(window.skilllensImporting){showError('Resume import is still in progress. Please wait for it to finish.');return;}
+  if($('resumeText').value.trim().length<100){showError('Please paste or import at least 100 characters of readable resume text.');return;}
   const guest=!window.skilllensHasSession?.();
   const payload=new FormData();
   payload.append('job_description',jd);payload.append('target_role',$('roleTitle').value);
-  if(method==='upload') payload.append('resume_file',lastFile,lastFile.name);
-  else payload.append('resume_text',$('resumeText').value);
+  payload.append('resume_text',$('resumeText').value);
   payload.append('semantic_mode',$('semanticMode').value);
   payload.append('use_custom_model',String($('customEvidence').checked));
   const button=$('analyzeButton');button.disabled=true;$('analyzeText').textContent=guest?'Preparing preview…':'Analyzing…';
@@ -108,7 +101,6 @@ form.addEventListener('submit',async (e)=>{
   window.skilllensTrack?.('analysis_started',{feature:'analysis'});
   try {
     if(guest){
-      if(method!=='paste') throw new Error('Use Import PDF / DOCX / TXT to preview locally extracted resume text.');
       const resume=$('resumeText').value.trim();
       const partial=resume.length>12000||jd.length>12000;
       const response=await fetch('/api/preview',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -249,8 +241,7 @@ fetchCapabilities();
 function jobPayload(){
   const fd=new FormData();fd.append('job_description',$('jobDescription').value.trim());
   fd.append('target_role',$('roleTitle').value.trim());
-  if(method==='upload'&&lastFile)fd.append('resume_file',lastFile,lastFile.name);
-  else fd.append('resume_text',$('resumeText').value);
+  fd.append('resume_text',$('resumeText').value);
   return fd;
 }
 function rewriteAlert(message){$('rewriteError').hidden=false;$('rewriteError').textContent=message;}
@@ -288,8 +279,8 @@ function displayRewrites(data){
 $('rewriteButton').addEventListener('click',async ()=>{
   $('rewriteError').hidden=true;$('rewriteInfo').textContent='';
   if($('jobDescription').value.trim().length<80)return rewriteAlert('Add a job description before rewriting.');
-  if(method==='upload'&&!lastFile)return rewriteAlert('Select a resume file before rewriting.');
-  if(method==='paste'&&$('resumeText').value.trim().length<100)return rewriteAlert('Paste your full resume text before rewriting.');
+  if(method==='upload'||window.skilllensImporting)return rewriteAlert('Import your PDF, DOCX or TXT file first, then generate your draft from extracted text.');
+  if($('resumeText').value.trim().length<100)return rewriteAlert('Paste or import your full resume text before rewriting.');
   const btn=$('rewriteButton');btn.disabled=true;btn.textContent='Preparing your draft…';
   try{
     const data=jobPayload();data.append('mode',$('rewriteMode').value);data.append('consent_external_ai',String($('aiConsent').checked));
