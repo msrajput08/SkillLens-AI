@@ -5,10 +5,12 @@ user agent, resume/JD content or visitor ID is written to the metrics table.
 Counts are events, not unique people; they can be affected by bots/ad blockers.
 """
 import os
+from pathlib import Path
 from datetime import timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import Integer, String, func, select
 from sqlalchemy.orm import Mapped, mapped_column
@@ -16,6 +18,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from .saas import Base, Session, User, engine, require_user, utcnow
 
 router = APIRouter()
+STATIC = Path(__file__).resolve().parent / 'static'
 MetricEvent = Literal[
     'page_view', 'analysis_started', 'preview_completed', 'analysis_completed',
     'signup_cta_clicked', 'signup_submitted', 'login_completed',
@@ -82,13 +85,24 @@ def record_event(data: MetricInput):
     return Response(status_code=204)
 
 
-@router.get('/api/analytics/summary')
-def metric_summary(days: int = Query(default=30, ge=1, le=90),
-                   user: User = Depends(require_user)):
-    """Only an explicitly configured verified administrator may read counters."""
+def require_metrics_admin(user: User = Depends(require_user)) -> User:
     admin = os.getenv('SKILLLENS_ANALYTICS_ADMIN_EMAIL', '').strip().lower()
     if not admin or user.email.lower() != admin:
         raise HTTPException(404, 'Not found.')
+    return user
+
+
+@router.get('/analytics', include_in_schema=False)
+def analytics_dashboard(user: User = Depends(require_metrics_admin)):
+    """Private UI; HTML is never exposed to other verified users."""
+    return FileResponse(STATIC / 'analytics-dashboard.html',
+                        headers={'Cache-Control': 'no-store'})
+
+
+@router.get('/api/analytics/summary')
+def metric_summary(days: int = Query(default=30, ge=1, le=90),
+                   user: User = Depends(require_metrics_admin)):
+    """Read daily aggregate counters; never identify individual visitors."""
     first_day = (utcnow().date() - timedelta(days=days - 1)).isoformat()
     with Session() as db:
         rows = db.execute(
