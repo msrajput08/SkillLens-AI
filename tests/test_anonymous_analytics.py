@@ -12,11 +12,11 @@ from app.saas import Session, utcnow
 def test_public_event_is_aggregate_only_and_rejects_extra_fields():
     with TestClient(app) as client:
         day = utcnow().date().isoformat()
-        key = ('preview_completed', '/', 'none', 'analysis')
+        key = ('preview_completed', '/', 'none', 'analysis', 'direct')
         with Session() as db:
             row = db.get(DailyMetric, (day, *key))
             before = row.count if row else 0
-        item = {'event':key[0], 'page':key[1], 'feature':key[3]}
+        item = {'event':key[0], 'page':key[1], 'feature':key[3], 'channel':key[4]}
         assert client.post('/api/analytics/event', json=item).status_code == 204
         assert client.post('/api/analytics/event', json=item).status_code == 204
         with Session() as db:
@@ -28,6 +28,9 @@ def test_public_event_is_aggregate_only_and_rejects_extra_fields():
             assert not hasattr(row, 'email')
         assert client.post('/api/analytics/event', json={
             **item, 'resume_text': 'Private resume secret'
+        }).status_code == 422
+        assert client.post('/api/analytics/event',json={
+            'event':'page_view', 'page':'/', 'channel':'https://bad.com/utm?email=secret'
         }).status_code == 422
         assert client.post('/api/analytics/event', json={
             'event':'page_view', 'page':'/?resume=private'
@@ -62,6 +65,7 @@ def test_summary_is_accessible_only_to_configured_verified_owner(monkeypatch):
         assert data['period_days'] == 30
         assert data['event_counts']['preview_completed'] >= 2
         assert 'unique users' in data['note']
+        assert 'acquisition_channels' in data
         assert client.get('/api/analytics/summary?days=91').status_code == 422
         monkeypatch.setenv('SKILLLENS_ANALYTICS_ADMIN_EMAIL','another@example.org')
         assert client.get('/api/analytics/summary').status_code == 404
@@ -77,6 +81,8 @@ def test_analytics_script_auto_counts_without_google_sdk_or_consent_banner():
     assert "globalPrivacyControl" in analytics
     assert "resume_text" not in analytics
     assert "gtag(" not in analytics
+    assert 'utm_source' in analytics
+    assert 'URLSearchParams' in analytics
     assert "googletagmanager" not in analytics
     assert "skilllens-analytics-consent" not in analytics
     privacy = (root/'app/legal.py').read_text()
