@@ -13,6 +13,16 @@
   ]);
   const SOURCES = new Set(['preview', 'pricing', 'quota', 'account', 'report']);
   const FEATURES = new Set(['analysis', 'rewrite']);
+  const CHANNELS = new Set([
+    'whatsapp', 'telegram', 'linkedin', 'x', 'email', 'instagram', 'youtube', 'reddit'
+  ]);
+  function acquisitionChannel() {
+    try {
+      const value = new URLSearchParams(location.search).get('utm_source');
+      if (!value) return 'direct';
+      return CHANNELS.has(value.toLowerCase()) ? value.toLowerCase() : 'other';
+    } catch { return 'direct'; }
+  }
   const PAGES = new Set([
     '/', '/builder', '/applications', '/resume-job-match',
     '/guides/how-to-tailor-resume', '/guides/resume-skills-gap',
@@ -57,7 +67,8 @@
       event: eventName,
       page: PAGES.has(path) ? path : '/other',
       source: SOURCES.has(attributes.source) ? attributes.source : 'none',
-      feature: FEATURES.has(attributes.feature) ? attributes.feature : 'none'
+      feature: FEATURES.has(attributes.feature) ? attributes.feature : 'none',
+      channel: acquisitionChannel()
     };
     // Browser intentionally sends no resume, JD, email, visitor ID, page query
     // string, referrer, or session cookie. Server stores only daily counters.
