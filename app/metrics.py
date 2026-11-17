@@ -29,6 +29,10 @@ MetricPage = Literal[
 ]
 MetricSource = Literal['none', 'preview', 'pricing', 'quota', 'account', 'report']
 MetricFeature = Literal['none', 'analysis', 'rewrite']
+MetricChannel = Literal[
+    'direct', 'whatsapp', 'telegram', 'linkedin', 'x', 'email',
+    'instagram', 'youtube', 'reddit', 'other'
+]
 
 
 class DailyMetric(Base):
@@ -38,6 +42,7 @@ class DailyMetric(Base):
     page: Mapped[str] = mapped_column(String(80), primary_key=True)
     source: Mapped[str] = mapped_column(String(20), primary_key=True)
     feature: Mapped[str] = mapped_column(String(20), primary_key=True)
+    channel: Mapped[str] = mapped_column(String(20), primary_key=True)
     count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
@@ -47,6 +52,7 @@ class MetricInput(BaseModel):
     page: MetricPage
     source: MetricSource = 'none'
     feature: MetricFeature = 'none'
+    channel: MetricChannel = 'direct'
 
 
 @router.post('/api/analytics/event', status_code=204, response_class=Response)
@@ -60,7 +66,7 @@ def record_event(data: MetricInput):
         raise HTTPException(422, 'Page-view attributes are not supported.')
     values = dict(
         day=utcnow().date().isoformat(), event=data.event, page=data.page,
-        source=data.source, feature=data.feature, count=1
+        source=data.source, feature=data.feature, channel=data.channel, count=1
     )
     if engine.dialect.name == 'postgresql':
         from sqlalchemy.dialects.postgresql import insert
@@ -68,7 +74,7 @@ def record_event(data: MetricInput):
         from sqlalchemy.dialects.sqlite import insert
     stmt = insert(DailyMetric).values(**values)
     stmt = stmt.on_conflict_do_update(
-        index_elements=['day', 'event', 'page', 'source', 'feature'],
+        index_elements=['day', 'event', 'page', 'source', 'feature', 'channel'],
         set_={'count': DailyMetric.count + 1}
     )
     with Session.begin() as db:
@@ -87,21 +93,22 @@ def metric_summary(days: int = Query(default=30, ge=1, le=90),
     with Session() as db:
         rows = db.execute(
             select(DailyMetric.day, DailyMetric.event, DailyMetric.page,
-                   func.sum(DailyMetric.count))
+                   DailyMetric.channel, func.sum(DailyMetric.count))
             .where(DailyMetric.day >= first_day)
-            .group_by(DailyMetric.day, DailyMetric.event, DailyMetric.page)
+            .group_by(DailyMetric.day, DailyMetric.event, DailyMetric.page, DailyMetric.channel)
             .order_by(DailyMetric.day)
         ).all()
-    totals, page_views, daily = {}, {}, {}
-    for day, event, page, count in rows:
+    totals, page_views, channels, daily = {}, {}, {}, {}
+    for day, event, page, channel, count in rows:
         count = int(count)
         totals[event] = totals.get(event, 0) + count
         if event == 'page_view':
             page_views[page] = page_views.get(page, 0) + count
+            channels[channel] = channels.get(channel, 0) + count
         date_totals = daily.setdefault(day, {})
         date_totals[event] = date_totals.get(event, 0) + count
     return {
         'period_days': days, 'since_utc': first_day, 'event_counts': totals,
-        'page_views': page_views, 'daily_events': daily,
+        'page_views': page_views, 'acquisition_channels': channels, 'daily_events': daily,
         'note': 'Aggregate event counts only. Not unique users, sessions, or verified paid revenue.'
     }
