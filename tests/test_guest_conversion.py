@@ -77,7 +77,9 @@ def test_frontend_has_preview_signup_and_safe_billing_fallback():
     assert 'disabled>Checking checkout' in html
     assert "Checkout currently unavailable" in auth
     assert "window.skilllensTrack" in analytics
-    assert "readChoice() !== 'accept'" in analytics
+    assert "credentials: 'omit'" in analytics
+    assert "globalPrivacyControl" in analytics
+    assert "skilllens-analytics-consent" not in analytics
 
 
 def test_guest_preview_throttle_stops_inference(monkeypatch):
